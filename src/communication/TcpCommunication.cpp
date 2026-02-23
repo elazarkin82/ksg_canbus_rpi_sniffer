@@ -52,7 +52,7 @@ int32_t TcpCommunication::open()
         return -1;
     }
 
-    result = connect(m_socketFd, (struct sockaddr*)&serverAddr, sizeof(serverAddr));
+    result = ::connect(m_socketFd, (struct sockaddr*)&serverAddr, sizeof(serverAddr));
     if (result < 0)
     {
         ::close(m_socketFd);
@@ -81,7 +81,7 @@ int32_t TcpCommunication::read(uint8_t* buffer, size_t maxLen)
         return -1;
     }
 
-    bytesRead = recv(m_socketFd, buffer, maxLen, 0);
+    bytesRead = ::recv(m_socketFd, buffer, maxLen, 0);
 
     if (bytesRead > 0)
     {
@@ -113,7 +113,8 @@ int32_t TcpCommunication::write(const uint8_t* data, size_t length)
     }
 
     // MSG_NOSIGNAL prevents SIGPIPE if peer disconnects
-    bytesWritten = send(m_socketFd, data, length, MSG_NOSIGNAL);
+    // Use ::send to call the global system function, not the member function
+    bytesWritten = ::send(m_socketFd, data, length, MSG_NOSIGNAL);
 
     if (bytesWritten >= 0)
     {
@@ -130,7 +131,7 @@ void TcpCommunication::unblock()
     if (m_socketFd >= 0)
     {
         // Shutdown read/write to force recv() to return immediately
-        shutdown(m_socketFd, SHUT_RDWR);
+        ::shutdown(m_socketFd, SHUT_RDWR);
     }
 }
 

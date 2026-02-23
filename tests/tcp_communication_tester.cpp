@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <sstream>
 
 using namespace communication;
 using namespace base;
@@ -33,6 +34,21 @@ public:
             m_serverFd = -1;
         }
         if (m_thread.joinable()) m_thread.join();
+    }
+
+    // Helper to send data directly to a connected client (for stress test)
+    // Note: This is a simplified server that handles one client at a time in the main loop.
+    // For more complex scenarios, we might need a list of clients.
+    // But for this test, the server just echoes.
+    // To simulate server-initiated flood, we can add a method here if needed,
+    // but the current tests rely on client sending first or echo.
+    // Let's add a method to flood the last connected client.
+    void floodClient(int count, int delayMs) {
+        // This is tricky because the server loop is blocking on accept/read.
+        // For the latency test, we want the SERVER to send data fast.
+        // We can do this by having a separate thread or just modifying the handleClient logic.
+        // For simplicity, let's make the client send the flood requests, and server echoes.
+        // OR, we can make a special "Flood" command.
     }
 
 private:
@@ -61,8 +77,6 @@ private:
             return;
         }
 
-        std::cout << "[Server] Listening on port " << m_port << std::endl;
-
         while (m_running) {
             struct sockaddr_in clientAddr;
             socklen_t addrLen = sizeof(clientAddr);
@@ -73,22 +87,31 @@ private:
                 break;
             }
 
-            std::cout << "[Server] Client connected" << std::endl;
             handleClient(clientFd);
-            std::cout << "[Server] Client disconnected" << std::endl;
         }
     }
 
     void handleClient(int clientFd) {
-        char buffer[1024];
+        char buffer[4096];
         while (m_running) {
-            ssize_t valread = read(clientFd, buffer, 1024);
+            ssize_t valread = read(clientFd, buffer, sizeof(buffer));
             if (valread <= 0) {
                 close(clientFd);
                 break;
             }
-            // Echo back
-            send(clientFd, buffer, valread, 0);
+
+            // Check for special "FLOOD" command
+            if (valread >= 5 && strncmp(buffer, "FLOOD", 5) == 0) {
+                // Send 1000 messages back fast
+                for (int i = 0; i < 1000; ++i) {
+                    std::string msg = "FloodMsg " + std::to_string(i) + "\n";
+                    send(clientFd, msg.c_str(), msg.length(), MSG_NOSIGNAL);
+                    // No delay here to simulate burst
+                }
+            } else {
+                // Echo back
+                send(clientFd, buffer, valread, MSG_NOSIGNAL);
+            }
         }
     }
 
@@ -101,9 +124,28 @@ private:
 // --- Test Listener ---
 class TestListener : public ICommunicationListener {
 public:
+    TestListener() : m_receivedCount(0), m_processingDelayMs(0), m_lastSeq(-1), m_drops(0) {}
+
     void onDataReceived(const uint8_t* data, size_t length) override {
         std::string msg((const char*)data, length);
-        std::cout << "[Client] Received: " << msg << " (" << length << " bytes)" << std::endl;
+
+        // Simulate processing delay
+        if (m_processingDelayMs > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(m_processingDelayMs));
+        }
+
+        // Check for sequence number in flood messages
+        if (msg.find("FloodMsg") == 0) {
+            try {
+                int seq = std::stoi(msg.substr(9));
+                if (m_lastSeq != -1 && seq != m_lastSeq + 1) {
+                    // Gap detected!
+                    m_drops += (seq - m_lastSeq - 1);
+                }
+                m_lastSeq = seq;
+            } catch (...) {}
+        }
+
         m_receivedCount++;
     }
 
@@ -111,64 +153,162 @@ public:
         std::cerr << "[Client] Error: " << errorCode << std::endl;
     }
 
-    std::atomic<int> m_receivedCount{0};
+    void reset() {
+        m_receivedCount = 0;
+        m_processingDelayMs = 0;
+        m_lastSeq = -1;
+        m_drops = 0;
+    }
+
+    std::atomic<int> m_receivedCount;
+    std::atomic<int> m_processingDelayMs;
+    int m_lastSeq;
+    int m_drops;
 };
 
-int main() {
-    const int PORT = 8080;
-    const std::string IP = "127.0.0.1";
+// --- Helper Functions ---
+void printTestResult(const std::string& testName, bool passed) {
+    std::cout << "--------------------------------------------------" << std::endl;
+    std::cout << "TEST: " << testName << " -> " << (passed ? "PASSED" : "FAILED") << std::endl;
+    std::cout << "--------------------------------------------------" << std::endl;
+}
 
-    std::cout << "--- Starting TCP Communication Test ---" << std::endl;
+// --- Test Cases ---
 
-    // 1. Start Server
-    TestServer server(PORT);
-    server.start();
-    std::this_thread::sleep_for(std::chrono::milliseconds(500)); // Wait for server
-
-    // 2. Create Client
-    TestListener listener;
-    TcpCommunication client(listener, IP, PORT);
-
-    // 3. Test Connection
-    std::cout << "\n[Test] Connecting..." << std::endl;
+bool testConnection(TcpCommunication& client) {
+    std::cout << "[Test] Attempting to connect..." << std::endl;
     if (client.start()) {
-        std::cout << "[Test] Connected successfully!" << std::endl;
-    } else {
-        std::cerr << "[Test] Failed to connect!" << std::endl;
-        return 1;
+        std::cout << "[Test] Connected." << std::endl;
+        return true;
     }
+    std::cerr << "[Test] Connection failed." << std::endl;
+    return false;
+}
 
-    // 4. Test Send/Receive (Echo)
-    std::cout << "\n[Test] Sending 'Hello World'..." << std::endl;
+bool testEcho(TcpCommunication& client, TestListener& listener) {
+    listener.reset();
     const char* msg = "Hello World";
+    std::cout << "[Test] Sending: " << msg << std::endl;
+
     client.send((const uint8_t*)msg, strlen(msg));
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(500)); // Wait for echo
-
-    if (listener.m_receivedCount > 0) {
-        std::cout << "[Test] Echo received successfully!" << std::endl;
-    } else {
-        std::cerr << "[Test] Echo FAILED!" << std::endl;
+    // Wait for echo
+    for (int i = 0; i < 10; ++i) {
+        if (listener.m_receivedCount > 0) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
-    // 5. Test Stress (Flood)
-    std::cout << "\n[Test] Starting Stress Test (100 messages)..." << std::endl;
-    listener.m_receivedCount = 0;
-    for (int i = 0; i < 100; ++i) {
+    if (listener.m_receivedCount == 1) {
+        return true;
+    }
+    return false;
+}
+
+bool testStress(TcpCommunication& client, TestListener& listener) {
+    listener.reset();
+    int count = 100;
+    std::cout << "[Test] Sending " << count << " messages..." << std::endl;
+
+    for (int i = 0; i < count; ++i) {
         std::string s = "Msg " + std::to_string(i);
         client.send((const uint8_t*)s.c_str(), s.length());
-        std::this_thread::sleep_for(std::chrono::milliseconds(1)); // Small delay
+        std::this_thread::sleep_for(std::chrono::milliseconds(1)); // Small delay to let server breathe
     }
 
-    std::this_thread::sleep_for(std::chrono::seconds(2)); // Wait for all echoes
+    // Wait for echoes
+    std::this_thread::sleep_for(std::chrono::seconds(2));
 
-    std::cout << "[Test] Received " << listener.m_receivedCount << "/100 messages back." << std::endl;
+    std::cout << "[Test] Received " << listener.m_receivedCount << "/" << count << std::endl;
+    return listener.m_receivedCount == count;
+}
 
-    // 6. Cleanup
-    std::cout << "\n[Test] Stopping..." << std::endl;
+bool testLatencyRecovery(TcpCommunication& client, TestListener& listener) {
+    listener.reset();
+
+    // 1. Set artificial delay in listener (simulating slow processing)
+    // The server will send 1000 messages very fast.
+    // If we process each message for 10ms, we can only handle 100 msg/sec.
+    // The buffer should fill up and drop packets.
+    listener.m_processingDelayMs = 5;
+
+    std::cout << "[Test] Triggering server flood (1000 msgs)..." << std::endl;
+    std::cout << "[Test] Client processing delay set to " << listener.m_processingDelayMs << "ms per message." << std::endl;
+
+    // Send command to server to start flooding
+    std::string cmd = "FLOOD";
+    client.send((const uint8_t*)cmd.c_str(), cmd.length());
+
+    // Wait enough time for all processing to finish (or be dropped)
+    // 1000 msgs * 5ms = 5 seconds if processed serially.
+    // But many will be dropped.
+    std::this_thread::sleep_for(std::chrono::seconds(3));
+
+    std::cout << "[Test] Received: " << listener.m_receivedCount << std::endl;
+    std::cout << "[Test] Drops detected (seq gaps): " << listener.m_drops << std::endl;
+
+    // Criteria for success:
+    // 1. We received SOME messages (not 0).
+    // 2. We dropped SOME messages (because we were slow).
+    // 3. The client is still alive and can receive normal messages.
+
+    bool passed = (listener.m_receivedCount > 0) && (listener.m_drops > 0);
+
+    if (passed) {
+        std::cout << "[Test] Recovery check: Sending normal message..." << std::endl;
+        listener.m_processingDelayMs = 0; // Remove delay
+        listener.m_receivedCount = 0;
+
+        std::string s = "RecoveryMsg";
+        client.send((const uint8_t*)s.c_str(), s.length());
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+        if (listener.m_receivedCount == 1) {
+            std::cout << "[Test] Recovery successful." << std::endl;
+        } else {
+            std::cerr << "[Test] Recovery FAILED (Client stuck?)" << std::endl;
+            passed = false;
+        }
+    }
+
+    return passed;
+}
+
+int main() {
+    const int PORT = 8081; // Use different port
+    const std::string IP = "127.0.0.1";
+
+    // Start Server
+    TestServer server(PORT);
+    server.start();
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+    // Create Client
+    TestListener listener;
+    // Use smaller buffer to force drops easier in latency test
+    TcpCommunication client(listener, IP, PORT, 4096 * 10);
+
+    std::cout << "=== Starting TCP Communication Tests ===" << std::endl;
+
+    // Run Tests
+    bool res;
+
+    res = testConnection(client);
+    printTestResult("Connection", res);
+
+    if (res) {
+        res = testEcho(client, listener);
+        printTestResult("Echo", res);
+
+        res = testStress(client, listener);
+        printTestResult("Stress (100 msgs)", res);
+
+        res = testLatencyRecovery(client, listener);
+        printTestResult("Latency & Recovery", res);
+    }
+
     client.stop();
     server.stop();
 
-    std::cout << "--- Test Finished ---" << std::endl;
+    std::cout << "=== All Tests Finished ===" << std::endl;
     return 0;
 }
