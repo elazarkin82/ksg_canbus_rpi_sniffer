@@ -49,46 +49,35 @@ public:
     static const int32_t ERROR_BUFFER_OVERFLOW = -100;
 
     /**
-     * @param listener The listener for incoming events. MUST NOT be NULL.
+     * @param listener The listener for incoming events. MUST be a valid object reference.
      * @param bufferSize Size of the internal ring buffer (default 64KB).
      */
-    CommunicationObj(ICommunicationListener* listener, size_t bufferSize = 64 * 1024)
+    CommunicationObj(ICommunicationListener& listener, size_t bufferSize = 64 * 1024)
         : m_listener(listener),
           m_running(false),
           m_bufferSize(bufferSize),
-          m_buffer(NULL),
-          m_head(0),
-          m_tail(0),
-          m_count(0)
+          m_cacheManager(NULL)
     {
-        if (m_bufferSize > 0)
-        {
-            m_buffer = (uint8_t*)malloc(m_bufferSize);
-        }
     }
 
     virtual ~CommunicationObj()
     {
         stop();
-        if (m_buffer)
+        if (m_cacheManager)
         {
-            free(m_buffer);
-            m_buffer = NULL;
+            delete m_cacheManager;
+            m_cacheManager = NULL;
         }
     }
 
     /**
      * Starts the communication threads.
-     * Returns false if listener is NULL or open() fails.
      */
     bool start()
     {
-        if (m_listener == NULL)
-        {
-            return false;
-        }
-
+        size_t maxFrameSize = 0;
         std::lock_guard<std::mutex> lock(m_mutex);
+
         if (m_running)
         {
             return true;
@@ -99,13 +88,10 @@ public:
             return false;
         }
 
-        // Reset buffer state
-        {
-            std::lock_guard<std::mutex> bufLock(m_bufferMutex);
-            m_head = 0;
-            m_tail = 0;
-            m_count = 0;
-        }
+        // Initialize CacheManager with the correct block size
+        maxFrameSize = getMaxFrameSize();
+        if (m_cacheManager) delete m_cacheManager;
+        m_cacheManager = new CacheManager(m_bufferSize, maxFrameSize);
 
         m_running = true;
 
@@ -133,7 +119,7 @@ public:
         }
 
         // Wake up worker thread so it can exit
-        m_dataAvailableCond.notify_all();
+        if (m_cacheManager) m_cacheManager->notifyStop();
 
         // Force unblock of read() if it's blocking
         unblock();
@@ -208,110 +194,170 @@ protected:
     }
 
 private:
-    // --- RX Thread: Reads from Hardware and pushes to Ring Buffer ---
+    // --- Inner Class: CacheManager ---
+    class CacheManager
+    {
+    public:
+        CacheManager(size_t totalSize, size_t maxFrameSize)
+            : m_buffer(NULL),
+              m_head(0),
+              m_tail(0),
+              m_processingIndex(-1)
+        {
+            // Calculate block size: 4 bytes header + maxFrameSize
+            // Align to 4 bytes
+            m_blockSize = (maxFrameSize + 4 + 3) & ~3;
+            m_numBlocks = totalSize / m_blockSize;
+            if (m_numBlocks < 2) m_numBlocks = 2; // Minimum 2 blocks
+
+            m_buffer = (uint8_t*)malloc(m_numBlocks * m_blockSize);
+        }
+
+        ~CacheManager()
+        {
+            if (m_buffer) free(m_buffer);
+        }
+
+        // Called by RX Thread
+        bool push(const uint8_t* data, size_t length)
+        {
+            size_t nextHead = 0;
+            uint8_t* ptr = NULL;
+            std::lock_guard<std::mutex> lock(m_mutex);
+
+            nextHead = (m_head + 1) % m_numBlocks;
+
+            // Check 1: Is the next block currently being processed by callback?
+            if ((int32_t)nextHead == m_processingIndex)
+            {
+                // Drop new packet to protect memory in use
+                return false;
+            }
+
+            // Check 2: Overwrite old data if full
+            if (nextHead == m_tail)
+            {
+                // Force advance tail (drop oldest packet)
+                m_tail = (m_tail + 1) % m_numBlocks;
+            }
+
+            // Write data
+            ptr = m_buffer + (m_head * m_blockSize);
+            *(uint32_t*)ptr = (uint32_t)length;
+            memcpy(ptr + 4, data, length);
+
+            m_head = nextHead;
+            m_cond.notify_one();
+            return true;
+        }
+
+        // Called by Worker Thread
+        void process(ICommunicationListener& listener, const std::atomic<bool>& running)
+        {
+            size_t currentIndex = 0;
+            uint8_t* ptr = NULL;
+            uint32_t len = 0;
+
+            while (running)
+            {
+                {
+                    std::unique_lock<std::mutex> lock(m_mutex);
+
+                    m_cond.wait(lock, [this, &running] {
+                        return m_head != m_tail || !running;
+                    });
+
+                    if (!running) break;
+
+                    // Lock current block for processing
+                    currentIndex = m_tail;
+                    m_processingIndex = (int32_t)currentIndex;
+
+                    // Advance tail logically (removed from queue, but kept in memory)
+                    m_tail = (m_tail + 1) % m_numBlocks;
+                } // Release lock before callback
+
+                // Zero-Copy access
+                ptr = m_buffer + (currentIndex * m_blockSize);
+                len = *(uint32_t*)ptr;
+
+                if (running)
+                {
+                    listener.onDataReceived(ptr + 4, len);
+                }
+
+                // Release processing lock
+                {
+                    std::lock_guard<std::mutex> lock(m_mutex);
+                    m_processingIndex = -1;
+                }
+            }
+        }
+
+        void notifyStop()
+        {
+            m_cond.notify_all();
+        }
+
+    private:
+        uint8_t* m_buffer;
+        size_t m_blockSize;
+        size_t m_numBlocks;
+
+        size_t m_head;
+        size_t m_tail;
+        int32_t m_processingIndex; // -1 if none
+
+        std::mutex m_mutex;
+        std::condition_variable m_cond;
+    };
+
+    // --- RX Thread: Reads from Hardware and pushes to CacheManager ---
     void rxThreadLoop()
     {
         size_t maxFrameSize = getMaxFrameSize();
-        // Allocate temp buffer on stack (or heap if too large)
-        // Note: alloca is non-standard but widely supported.
-        // Using VLA or std::vector/malloc is safer for portability.
-        // Here we use malloc once per thread start to be safe and standard.
         uint8_t* tempBuffer = (uint8_t*)malloc(maxFrameSize);
+        int32_t bytesRead = 0;
 
         while (m_running)
         {
-            int32_t bytesRead = read(tempBuffer, maxFrameSize);
+            bytesRead = read(tempBuffer, maxFrameSize);
 
             if (bytesRead > 0)
             {
-                pushToBuffer(tempBuffer, (size_t)bytesRead);
+                if (!m_cacheManager->push(tempBuffer, (size_t)bytesRead))
+                {
+                    // Buffer full and locked by callback -> Drop
+                    if (m_running)
+                    {
+                        // Optional: notify overflow error
+                        // m_listener.onError(ERROR_BUFFER_OVERFLOW);
+                    }
+                }
             }
             else if (bytesRead < 0)
             {
-                // Error occurred
-                // We can notify error directly from RX thread as it's usually fast
-                if (m_listener != NULL && m_running)
+                if (m_running)
                 {
-                    m_listener->onError(bytesRead);
+                    m_listener.onError(bytesRead);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
                 }
-                // Avoid busy loop on persistent error
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
-            // bytesRead == 0 -> continue (timeout or keepalive)
         }
 
         free(tempBuffer);
     }
 
-    // --- Worker Thread: Pulls from Ring Buffer and calls Callback ---
+    // --- Worker Thread: Pulls from CacheManager and calls Callback ---
     void workerThreadLoop()
     {
-        size_t maxFrameSize = getMaxFrameSize();
-        uint8_t* processBuffer = (uint8_t*)malloc(maxFrameSize);
-
-        while (m_running)
+        if (m_cacheManager)
         {
-            size_t bytesToProcess = 0;
-
-            {
-                std::unique_lock<std::mutex> lock(m_bufferMutex);
-
-                // Wait for data or stop signal
-                m_dataAvailableCond.wait(lock, [this] {
-                    return m_count > 0 || !m_running;
-                });
-
-                if (!m_running) break;
-
-                // Pop data from ring buffer
-                // We try to read as much as possible up to maxFrameSize
-                while (m_count > 0 && bytesToProcess < maxFrameSize)
-                {
-                    processBuffer[bytesToProcess++] = m_buffer[m_tail];
-                    m_tail = (m_tail + 1) % m_bufferSize;
-                    m_count--;
-                }
-            } // Release lock before processing callback
-
-            if (bytesToProcess > 0)
-            {
-                if (m_listener != NULL && m_running)
-                {
-                    m_listener->onDataReceived(processBuffer, bytesToProcess);
-                }
-            }
+            m_cacheManager->process(m_listener, m_running);
         }
-
-        free(processBuffer);
     }
 
-    // --- Ring Buffer Helper ---
-    void pushToBuffer(const uint8_t* data, size_t length)
-    {
-        std::lock_guard<std::mutex> lock(m_bufferMutex);
-
-        if (m_count + length > m_bufferSize)
-        {
-            // Overflow! Drop packet and notify error
-            // We do NOT overwrite old data, we drop new data.
-            // Unlock buffer mutex before calling listener to avoid deadlock?
-            // Here we are inside lock. Calling listener might be risky if listener calls back into this object.
-            // But onError is usually logging. Let's be careful.
-            // Ideally we should have an atomic flag or counter for overflow.
-            return;
-        }
-
-        for (size_t i = 0; i < length; ++i)
-        {
-            m_buffer[m_head] = data[i];
-            m_head = (m_head + 1) % m_bufferSize;
-            m_count++;
-        }
-
-        m_dataAvailableCond.notify_one();
-    }
-
-    ICommunicationListener* const m_listener; // Const pointer, set in constructor
+    ICommunicationListener& m_listener;
 
     std::thread m_rxThread;
     std::thread m_workerThread;
@@ -319,14 +365,8 @@ private:
     std::atomic<bool> m_running;
     std::mutex m_mutex; // Protects general state
 
-    // Ring Buffer
     size_t m_bufferSize;
-    uint8_t* m_buffer;
-    size_t m_head;
-    size_t m_tail;
-    size_t m_count;
-    std::mutex m_bufferMutex; // Protects ring buffer access
-    std::condition_variable m_dataAvailableCond;
+    CacheManager* m_cacheManager;
 };
 
 } // namespace base
