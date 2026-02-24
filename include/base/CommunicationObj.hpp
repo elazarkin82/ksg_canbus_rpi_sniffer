@@ -200,22 +200,39 @@ private:
     public:
         CacheManager(size_t totalSize, size_t maxFrameSize)
             : m_buffer(NULL),
+              m_originalBuffer(NULL),
               m_head(0),
               m_tail(0),
               m_processingIndex(-1)
         {
+            size_t alignment = 64;
+            size_t allocSize = 0;
+            uintptr_t rawAddress = 0;
+            uintptr_t alignedAddress = 0;
+
             // Calculate block size: 4 bytes header + maxFrameSize
             // Align to 4 bytes
-            m_blockSize = (maxFrameSize + 4 + 3) & ~3;
+            m_blockSize = (maxFrameSize + sizeof(uint32_t) + 3) & ~3;
             m_numBlocks = totalSize / m_blockSize;
             if (m_numBlocks < 2) m_numBlocks = 2; // Minimum 2 blocks
 
-            m_buffer = (uint8_t*)malloc(m_numBlocks * m_blockSize);
+            // Allocate memory with manual alignment to 64 bytes (cache line size)
+            allocSize = (m_numBlocks * m_blockSize) + alignment;
+
+            m_originalBuffer = malloc(allocSize);
+            if (m_originalBuffer)
+            {
+                rawAddress = (uintptr_t)m_originalBuffer;
+                // Align address to next multiple of 'alignment'
+                alignedAddress = (rawAddress + alignment - 1) & ~(alignment - 1);
+                m_buffer = (uint8_t*)alignedAddress;
+            }
         }
 
         ~CacheManager()
         {
-            if (m_buffer) free(m_buffer);
+            // Free the original pointer returned by malloc
+            if (m_originalBuffer) free(m_originalBuffer);
         }
 
         // Called by RX Thread
@@ -244,7 +261,7 @@ private:
             // Write data
             ptr = m_buffer + (m_head * m_blockSize);
             *(uint32_t*)ptr = (uint32_t)length;
-            memcpy(ptr + 4, data, length);
+            memcpy(ptr + sizeof(uint32_t), data, length);
 
             m_head = nextHead;
             m_cond.notify_one();
@@ -283,7 +300,7 @@ private:
 
                 if (running)
                 {
-                    listener.onDataReceived(ptr + 4, len);
+                    listener.onDataReceived(ptr + sizeof(uint32_t), len);
                 }
 
                 // Release processing lock
@@ -300,7 +317,9 @@ private:
         }
 
     private:
-        uint8_t* m_buffer;
+        uint8_t* m_buffer;          // Aligned pointer for usage
+        void* m_originalBuffer;     // Original pointer for free()
+
         size_t m_blockSize;
         size_t m_numBlocks;
 
