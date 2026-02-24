@@ -1,4 +1,4 @@
-#include "communication/TcpCommunication.hpp"
+#include "communication/TcpCommunication.h"
 #include <iostream>
 #include <thread>
 #include <vector>

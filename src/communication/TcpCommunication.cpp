@@ -1,4 +1,4 @@
-#include "communication/TcpCommunication.hpp"
+#include "communication/TcpCommunication.h"
 
 #include <sys/socket.h>
 #include <netinet/in.h>

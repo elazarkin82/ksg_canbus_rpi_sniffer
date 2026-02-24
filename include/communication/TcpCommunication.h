@@ -1,5 +1,5 @@
-#ifndef TCP_COMMUNICATION_HPP
-#define TCP_COMMUNICATION_HPP
+#ifndef TCP_COMMUNICATION_H
+#define TCP_COMMUNICATION_H
 
 #include "base/CommunicationObj.hpp"
 #include <string>
@@ -36,4 +36,4 @@ private:
 
 } // namespace communication
 
-#endif // TCP_COMMUNICATION_HPP
+#endif // TCP_COMMUNICATION_H
