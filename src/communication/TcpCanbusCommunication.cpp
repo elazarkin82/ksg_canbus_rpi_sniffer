@@ -36,53 +36,87 @@ void TcpCanbusCommunication::onError(int32_t errorCode)
 void TcpCanbusCommunication::processBuffer(const uint8_t* data, size_t length)
 {
     size_t offset = 0;
-    const ExternalCanbusMessageHeader* header = nullptr;
-    const size_t packetSize = sizeof(ExternalCanbusMessageHeader);
+    const uint8_t* ptr = nullptr;
+    size_t remaining = length;
 
-    while (offset + packetSize <= length)
+    while (remaining >= 4)
     {
-        header = (const ExternalCanbusMessageHeader*)(data + offset);
+        ptr = data + offset;
 
-        // Validate Magic Key
-        if (strncmp(header->magic_key, "v1.00", 4) == 0)
+        // Check for V1 Protocol ("v1.00")
+        if (strncmp((const char*)ptr, "v1.00", 4) == 0)
         {
-            // Validate data size
-            if (header->data_size <= 1024)
+            if (remaining >= sizeof(ExternalMessageV1))
             {
-                if (header->command == CMD_CANBUS_DATA)
+                const ExternalMessageV1* msg = (const ExternalMessageV1*)ptr;
+
+                if (msg->data_size <= 1024)
                 {
-                    // Forward CAN data to the main listener
-                    m_targetListener.onDataReceived(header->data, header->data_size);
-                }
-                else if (m_commandListener)
-                {
-                    // Forward other commands to the command listener
-                    m_commandListener->onCommandReceived(header->command, header->data, header->data_size);
+                    if (msg->command == CMD_CANBUS_DATA)
+                    {
+                        // Forward CAN data to the main listener
+                        m_targetListener.onDataReceived(msg->data, msg->data_size);
+                    }
+                    else if (m_commandListener)
+                    {
+                        // Forward other commands to the command listener
+                        m_commandListener->onCommandReceived(msg->command, msg->data, msg->data_size);
+                    }
+                    else
+                    {
+                        // TODO: Handle unhandled commands internally or log
+                    }
                 }
                 else
                 {
-                    // TODO: Handle unhandled commands internally or log
+                    fprintf(stderr, "Dropping invalid packet! Received with magic key 'v1.00', but data size exceeds 1024 bytes limit. Possible protocol version mismatch.\n");
                 }
+
+                // Advance
+                offset += sizeof(ExternalMessageV1);
+                remaining -= sizeof(ExternalMessageV1);
             }
             else
             {
-                fprintf(stderr, "Dropping invalid packet! Received with magic key 'v1.00', but data size exceeds 1024 bytes limit. Possible protocol version mismatch.\n");
+                // Incomplete V1 message. Drop remaining buffer as we assume no fragmentation.
+                fprintf(stderr, "Incomplete V1 message. Dropping remaining buffer.\n");
+                break;
+            }
+        }
+        // Check for CANFD Protocol ("canf")
+        else if (strncmp((const char*)ptr, "canf", 4) == 0)
+        {
+            if (remaining >= sizeof(ExternalCanfdMessage))
+            {
+                const ExternalCanfdMessage* msg = (const ExternalCanfdMessage*)ptr;
+
+                // Forward raw CAN FD frame to the main listener
+                // Note: The listener expects raw bytes, so we send the struct canfd_frame directly.
+                m_targetListener.onDataReceived((const uint8_t*)&msg->frame, sizeof(struct canfd_frame));
+
+                // Advance
+                offset += sizeof(ExternalCanfdMessage);
+                remaining -= sizeof(ExternalCanfdMessage);
+            }
+            else
+            {
+                // Incomplete CANFD message. Drop remaining buffer.
+                fprintf(stderr, "Incomplete CANFD message. Dropping remaining buffer.\n");
+                break;
             }
         }
         else
         {
-            // Magic key mismatch. For robustness, we could scan byte-by-byte for the next key.
-            // For simplicity now, we just advance by one byte.
-            offset++;
-            continue;
+            // Unknown magic key. Drop remaining buffer.
+            fprintf(stderr, "Unknown magic key. Dropping remaining buffer.\n");
+            break;
         }
-
-        // Advance to the next packet
-        offset += packetSize;
     }
 
-    // Note: Any remaining bytes (less than a full packet) are discarded,
-    // based on the assumption of no fragmentation.
+    if (remaining > 0 && remaining < 4)
+    {
+        fprintf(stderr, "Buffer too small for magic key (%zu bytes). Dropping.\n", remaining);
+    }
 }
 
 } // namespace communication
