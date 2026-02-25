@@ -44,7 +44,7 @@ void TcpCanbusCommunication::processBuffer(const uint8_t* data, size_t length)
         header = (const ExternalCanbusMessageHeader*)(data + offset);
 
         // Validate Magic Key
-        if (strncmp(header->magic_key, "KSG1", 4) == 0)
+        if (strncmp(header->magic_key, "v1.00", 4) == 0)
         {
             // Validate data size
             if (header->data_size <= 1024)
@@ -63,6 +63,10 @@ void TcpCanbusCommunication::processBuffer(const uint8_t* data, size_t length)
                 {
                     // TODO: Handle unhandled commands internally or log
                 }
+            }
+            else
+            {
+                fprintf(stderr, "Dropping invalid packet! Received with magic key 'v1.00', but data size exceeds 1024 bytes limit. Possible protocol version mismatch.\n");
             }
         }
         else
