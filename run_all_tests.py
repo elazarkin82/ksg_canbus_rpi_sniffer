@@ -64,7 +64,7 @@ def main():
     # 4. Run Tests
     for test_exe in TEST_EXECUTABLES:
         test_path = os.path.join(BUILD_DIR, test_exe)
-        
+
         if os.path.exists(test_path):
             print(f"Running {test_exe}...")
             ret_code = run_command(f"./{test_exe}", cwd=BUILD_DIR)
