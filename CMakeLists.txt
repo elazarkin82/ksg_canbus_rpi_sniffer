@@ -16,6 +16,9 @@ list(REMOVE_ITEM LIB_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
 add_executable(RpiCanbusSniffer src/main.cpp ${LIB_SOURCES})
 target_link_libraries(RpiCanbusSniffer Threads::Threads)
 
-# Test Executable (does NOT include main.cpp)
+# Test Executables
 add_executable(tcp_communication_tester tests/tcp_communication_tester.cpp ${LIB_SOURCES})
 target_link_libraries(tcp_communication_tester Threads::Threads)
+
+add_executable(tcp_canbus_tester tests/tcp_canbus_tester.cpp ${LIB_SOURCES})
+target_link_libraries(tcp_canbus_tester Threads::Threads)
