@@ -22,3 +22,9 @@ target_link_libraries(tcp_communication_tester Threads::Threads)
 
 add_executable(tcp_canbus_tester tests/tcp_canbus_tester.cpp ${LIB_SOURCES})
 target_link_libraries(tcp_canbus_tester Threads::Threads)
+
+add_executable(udp_communication_tester tests/udp_communication_tester.cpp ${LIB_SOURCES})
+target_link_libraries(udp_communication_tester Threads::Threads)
+
+add_executable(udp_canbus_tester tests/udp_canbus_tester.cpp ${LIB_SOURCES})
+target_link_libraries(udp_canbus_tester Threads::Threads)

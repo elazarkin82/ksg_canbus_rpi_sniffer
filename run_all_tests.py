@@ -7,7 +7,12 @@ import multiprocessing
 
 # Configuration
 BUILD_DIR = "build_tests"
-TEST_EXECUTABLES = ["tcp_communication_tester", "tcp_canbus_tester"]
+TEST_EXECUTABLES = [
+    "tcp_communication_tester", 
+    "tcp_canbus_tester",
+    "udp_communication_tester",
+    "udp_canbus_tester"
+]
 
 # Colors
 GREEN = '\033[0;32m'
@@ -17,12 +22,12 @@ NC = '\033[0m' # No Color
 def print_colored(text, color):
     print(f"{color}{text}{NC}")
 
-def run_command(command, cwd=None):
+def run_command(command):
     try:
+        # Run command in the current working directory (which will be BUILD_DIR)
         result = subprocess.run(
             command,
-            cwd=cwd,
-            check=False, # We handle return code manually
+            check=False,
             shell=True
         )
         return result.returncode
@@ -40,16 +45,24 @@ def main():
         print(f"Creating build directory: {BUILD_DIR}")
         os.makedirs(BUILD_DIR)
 
-    # 2. Configure (CMake)
+    # 2. Enter Build Directory
+    try:
+        os.chdir(BUILD_DIR)
+    except OSError as e:
+        print_colored(f"Failed to enter build directory: {e}", RED)
+        sys.exit(1)
+
+    # 3. Configure (CMake)
     print("Configuring with CMake...")
-    if run_command("cmake ..", cwd=BUILD_DIR) != 0:
+    # Note: We are inside build_tests, so source is at ".."
+    if run_command("cmake ..") != 0:
         print_colored("CMake configuration failed!", RED)
         sys.exit(1)
 
-    # 3. Build (Make)
+    # 4. Build (Make)
     print("Building...")
     num_cores = multiprocessing.cpu_count()
-    if run_command(f"make -j{num_cores}", cwd=BUILD_DIR) != 0:
+    if run_command(f"make -j{num_cores}") != 0:
         print_colored("Build failed!", RED)
         sys.exit(1)
 
@@ -61,13 +74,12 @@ def main():
     failed_tests = 0
     failed_list = []
 
-    # 4. Run Tests
+    # 5. Run Tests
     for test_exe in TEST_EXECUTABLES:
-        test_path = os.path.join(BUILD_DIR, test_exe)
-
-        if os.path.exists(test_path):
+        # Check if executable exists in current directory
+        if os.path.exists(f"./{test_exe}"):
             print(f"Running {test_exe}...")
-            ret_code = run_command(f"./{test_exe}", cwd=BUILD_DIR)
+            ret_code = run_command(f"./{test_exe}")
             
             total_tests += 1
             
@@ -83,7 +95,7 @@ def main():
             failed_tests += 1
             failed_list.append(f"{test_exe} (Not Found)")
 
-    # 5. Summary
+    # 6. Summary
     print("========================================")
     print("             TEST SUMMARY               ")
     print("========================================")
