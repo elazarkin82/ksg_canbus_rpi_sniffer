@@ -169,7 +169,11 @@ public:
 // --- Helper Functions ---
 void printTestResult(const std::string& testName, bool passed) {
     std::cout << "--------------------------------------------------" << std::endl;
-    std::cout << "TEST: " << testName << " -> " << (passed ? "PASSED" : "FAILED") << std::endl;
+    if (passed) {
+        std::cout << "TEST: " << testName << " -> \033[32mPASSED\033[0m" << std::endl;
+    } else {
+        std::cout << "TEST: " << testName << " -> \033[31mFAILED\033[0m" << std::endl;
+    }
     std::cout << "--------------------------------------------------" << std::endl;
 }
 

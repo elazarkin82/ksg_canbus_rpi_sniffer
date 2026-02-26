@@ -151,7 +151,13 @@ private:
 
 // --- Helper ---
 void printResult(const std::string& name, bool passed) {
-    std::cout << "TEST: " << name << " -> " << (passed ? "PASSED" : "FAILED") << std::endl;
+    std::cout << "--------------------------------------------------" << std::endl;
+    if (passed) {
+        std::cout << "TEST: " << name << " -> \033[32mPASSED\033[0m" << std::endl;
+    } else {
+        std::cout << "TEST: " << name << " -> \033[31mFAILED\033[0m" << std::endl;
+    }
+    std::cout << "--------------------------------------------------" << std::endl;
 }
 
 // --- Tests ---
