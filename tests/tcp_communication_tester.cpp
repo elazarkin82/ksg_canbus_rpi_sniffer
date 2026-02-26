@@ -279,7 +279,7 @@ bool testLatencyRecovery(TcpCommunication& client, TestListener& listener) {
 
 int main() {
     const int PORT = 8081; // Use different port
-    const std::string IP = "127.0.0.1";
+    const char* IP = "127.0.0.1"; // Changed to const char*
 
     // Start Server
     TestServer server(PORT);

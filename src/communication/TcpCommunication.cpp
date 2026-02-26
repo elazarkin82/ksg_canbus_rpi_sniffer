@@ -12,12 +12,16 @@
 namespace communication
 {
 
-TcpCommunication::TcpCommunication(base::ICommunicationListener& listener, const std::string& ip, uint16_t port, size_t bufferSize)
+TcpCommunication::TcpCommunication(base::ICommunicationListener& listener, const char* ip, uint16_t port, size_t bufferSize)
     : base::CommunicationObj(listener, bufferSize),
-      m_ip(ip),
       m_port(port),
       m_socketFd(-1)
 {
+    memset(m_ip, 0, sizeof(m_ip));
+    if (ip)
+    {
+        strncpy(m_ip, ip, sizeof(m_ip) - 1);
+    }
 }
 
 TcpCommunication::~TcpCommunication()
@@ -45,7 +49,7 @@ int32_t TcpCommunication::open()
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(m_port);
 
-    if (inet_pton(AF_INET, m_ip.c_str(), &serverAddr.sin_addr) <= 0)
+    if (inet_pton(AF_INET, m_ip, &serverAddr.sin_addr) <= 0)
     {
         ::close(m_socketFd);
         m_socketFd = -1;

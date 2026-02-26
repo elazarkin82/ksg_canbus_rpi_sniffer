@@ -12,11 +12,15 @@
 namespace canbus_communication
 {
 
-ObdCanbusCommunication::ObdCanbusCommunication(base::ICommunicationListener& listener, const std::string& interfaceName, size_t bufferSize)
+ObdCanbusCommunication::ObdCanbusCommunication(base::ICommunicationListener& listener, const char* interfaceName, size_t bufferSize)
     : base::CommunicationObj(listener, bufferSize),
-      m_interfaceName(interfaceName),
       m_socketFd(-1)
 {
+    memset(m_interfaceName, 0, sizeof(m_interfaceName));
+    if (interfaceName)
+    {
+        strncpy(m_interfaceName, interfaceName, sizeof(m_interfaceName) - 1);
+    }
 }
 
 ObdCanbusCommunication::~ObdCanbusCommunication()
@@ -50,7 +54,7 @@ int32_t ObdCanbusCommunication::open()
 
     // Get interface index
     memset(&ifr, 0, sizeof(ifr));
-    strncpy(ifr.ifr_name, m_interfaceName.c_str(), IFNAMSIZ - 1);
+    strncpy(ifr.ifr_name, m_interfaceName, IFNAMSIZ - 1);
     if (ioctl(m_socketFd, SIOCGIFINDEX, &ifr) < 0)
     {
         ::close(m_socketFd);
@@ -139,8 +143,6 @@ void ObdCanbusCommunication::unblock()
     if (m_socketFd >= 0)
     {
         // Shutdown read/write to force read() to return immediately
-        // Note: shutdown() might not be fully supported on all CAN socket implementations,
-        // but close() will definitely work. We try shutdown first.
         ::shutdown(m_socketFd, SHUT_RDWR);
     }
 }

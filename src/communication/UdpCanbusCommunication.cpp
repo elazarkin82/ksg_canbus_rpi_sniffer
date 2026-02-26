@@ -1,43 +1,42 @@
-#include "communication/TcpCanbusCommunication.h"
+#include "communication/UdpCanbusCommunication.h"
 #include <string.h>
 #include <stdio.h>
 
 namespace communication
 {
 
-TcpCanbusCommunication::TcpCanbusCommunication(base::ICommunicationListener& listener, const char* ip, uint16_t port)
-    : TcpCommunication(*this, ip, port), // Pass *this as the listener to the base TcpCommunication
+UdpCanbusCommunication::UdpCanbusCommunication(base::ICommunicationListener& listener, const char* ip, uint16_t remotePort, uint16_t localPort)
+    : UdpCommunication(*this, ip, remotePort, localPort),
       m_targetListener(listener),
       m_commandListener(nullptr)
 {
 }
 
-TcpCanbusCommunication::~TcpCanbusCommunication()
+UdpCanbusCommunication::~UdpCanbusCommunication()
 {
 }
 
-void TcpCanbusCommunication::setCommandListener(ICommandListener* commandListener)
+void UdpCanbusCommunication::setCommandListener(ICommandListener* commandListener)
 {
     m_commandListener = commandListener;
 }
 
-void TcpCanbusCommunication::onDataReceived(const uint8_t* data, size_t length)
+void UdpCanbusCommunication::onDataReceived(const uint8_t* data, size_t length)
 {
-    // Process the incoming buffer directly, assuming fixed-size packets
-    processBuffer(data, length);
+    // UDP preserves message boundaries, so each callback is a full packet
+    processPacket(data, length);
 }
 
-void TcpCanbusCommunication::onError(int32_t errorCode)
+void UdpCanbusCommunication::onError(int32_t errorCode)
 {
-    // Forward error to the target listener
     m_targetListener.onError(errorCode);
 }
 
-void TcpCanbusCommunication::processBuffer(const uint8_t* data, size_t length)
+void UdpCanbusCommunication::processPacket(const uint8_t* data, size_t length)
 {
     if (length < 4)
     {
-        fprintf(stderr, "Buffer too small for magic key (%zu bytes). Dropping.\n", length);
+        fprintf(stderr, "UDP Packet too small for magic key (%zu bytes). Dropping.\n", length);
         return;
     }
 
@@ -52,17 +51,11 @@ void TcpCanbusCommunication::processBuffer(const uint8_t* data, size_t length)
             {
                 if (msg->command == CMD_CANBUS_DATA)
                 {
-                    // Forward CAN data to the main listener
                     m_targetListener.onDataReceived(msg->data, msg->data_size);
                 }
                 else if (m_commandListener)
                 {
-                    // Forward other commands to the command listener
                     m_commandListener->onCommandReceived(msg->command, msg->data, msg->data_size);
-                }
-                else
-                {
-                    // TODO: Handle unhandled commands internally or log
                 }
             }
             else
@@ -72,7 +65,7 @@ void TcpCanbusCommunication::processBuffer(const uint8_t* data, size_t length)
         }
         else
         {
-            fprintf(stderr, "Incomplete V1 message. Dropping buffer.\n");
+            fprintf(stderr, "Incomplete V1 message. Dropping packet.\n");
         }
     }
     // Check for CANFD Protocol ("canf")
@@ -81,19 +74,16 @@ void TcpCanbusCommunication::processBuffer(const uint8_t* data, size_t length)
         if (length >= sizeof(ExternalCanfdMessage))
         {
             const ExternalCanfdMessage* msg = (const ExternalCanfdMessage*)data;
-
-            // Forward raw CAN FD frame to the main listener
-            // Note: The listener expects raw bytes, so we send the struct canfd_frame directly.
             m_targetListener.onDataReceived((const uint8_t*)&msg->frame, sizeof(struct canfd_frame));
         }
         else
         {
-            fprintf(stderr, "Incomplete CANFD message. Dropping buffer.\n");
+            fprintf(stderr, "Incomplete CANFD message. Dropping packet.\n");
         }
     }
     else
     {
-        fprintf(stderr, "Unknown magic key. Dropping buffer.\n");
+        fprintf(stderr, "Unknown magic key. Dropping packet.\n");
     }
 }
 

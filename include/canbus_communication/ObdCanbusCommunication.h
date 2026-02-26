@@ -2,9 +2,9 @@
 #define OBD_CANBUS_COMMUNICATION_H
 
 #include "base/CommunicationObj.hpp"
-#include <string>
 #include <linux/can.h>
 #include <linux/can/raw.h>
+#include <net/if.h> // For IFNAMSIZ
 
 namespace canbus_communication
 {
@@ -17,7 +17,7 @@ public:
      * @param interfaceName The CAN interface name (e.g., "can0", "vcan0").
      * @param bufferSize Size of the internal ring buffer (default 64KB).
      */
-    ObdCanbusCommunication(base::ICommunicationListener& listener, const std::string& interfaceName, size_t bufferSize = 64 * 1024);
+    ObdCanbusCommunication(base::ICommunicationListener& listener, const char* interfaceName, size_t bufferSize = 64 * 1024);
 
     virtual ~ObdCanbusCommunication();
 
@@ -31,7 +31,7 @@ protected:
     virtual size_t getMaxFrameSize() const;
 
 private:
-    std::string m_interfaceName;
+    char m_interfaceName[IFNAMSIZ];
     int m_socketFd;
 };
 
