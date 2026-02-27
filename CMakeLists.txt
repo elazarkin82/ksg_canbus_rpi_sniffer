@@ -2,8 +2,10 @@ cmake_minimum_required(VERSION 3.10)
 project(RpiCanbusSniffer)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_C_STANDARD 99)
 
 include_directories(include)
+include_directories(car_system_canbus_emulator/include)
 
 # Find Threads library (required for std::thread on Linux)
 find_package(Threads REQUIRED)
@@ -28,3 +30,12 @@ target_link_libraries(udp_communication_tester Threads::Threads)
 
 add_executable(udp_canbus_tester tests/udp_canbus_tester.cpp ${LIB_SOURCES})
 target_link_libraries(udp_canbus_tester Threads::Threads)
+
+# Emulator
+file(GLOB EMULATOR_SOURCES "car_system_canbus_emulator/src/*.c")
+add_executable(car_system_emulator ${EMULATOR_SOURCES})
+target_link_libraries(car_system_emulator Threads::Threads m) # Link math library
+
+# Emulator Tester
+add_executable(emulator_tester tests/emulator_tester.cpp ${LIB_SOURCES})
+target_link_libraries(emulator_tester Threads::Threads)
