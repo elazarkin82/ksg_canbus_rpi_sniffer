@@ -57,16 +57,13 @@ namespace FilterEngine
         init_internal();
 
         // 2. Copy data directly to raw memory
-        // Ensure we don't overflow the 64KB buffer
         if (length > sizeof(rules_raw_memory))
         {
             length = sizeof(rules_raw_memory);
         }
 
-        // Calculate number of full rules that fit in the received data
         num_rules = length / sizeof(communication::CanFilterRule);
 
-        // Ensure we don't exceed our calculated MAX_RULES (though sizeof check above covers it)
         if (num_rules > MAX_RULES)
         {
             num_rules = MAX_RULES;
@@ -77,7 +74,6 @@ namespace FilterEngine
         rules_count = num_rules;
 
         // 3. Sort by CAN ID
-        // rules_ptr points to the start of rules_raw_memory
         std::sort(rules_ptr, rules_ptr + rules_count,
             [](const communication::CanFilterRule& a, const communication::CanFilterRule& b) {
                 return (a.can_id & 0x7FF) < (b.can_id & 0x7FF);
@@ -97,7 +93,7 @@ namespace FilterEngine
         }
     }
 
-    static bool process(uint32_t can_id, uint8_t* data, size_t len)
+    static bool process(uint32_t can_id, uint8_t* data, size_t len, Sniffer::CanListener::Source source)
     {
         std::lock_guard<std::mutex> lock(filter_mutex);
         communication::CanFilterRule* rule;
@@ -116,6 +112,16 @@ namespace FilterEngine
 
         for (int i = 0; i < count; ++i, ++rule)
         {
+            // Check direction
+            if (rule->target == communication::FILTER_TARGET_TO_SYSTEM && source != Sniffer::CanListener::SOURCE_CAR_COMPUTER)
+            {
+                continue; // Rule not for this direction
+            }
+            if (rule->target == communication::FILTER_TARGET_TO_CAR && source != Sniffer::CanListener::SOURCE_CAR_SYSTEM)
+            {
+                continue; // Rule not for this direction
+            }
+
             bool match = true;
             if (rule->data_mask != 0)
             {
@@ -276,7 +282,7 @@ void Sniffer::handleCanData(CanListener::Source source, const uint8_t* data, siz
     frame = (struct can_frame*)buffer;
 
     // Process with filter engine
-    should_forward = FilterEngine::process(frame->can_id, frame->data, frame->can_dlc);
+    should_forward = FilterEngine::process(frame->can_id, frame->data, frame->can_dlc, source);
 
     if (should_forward)
     {

@@ -77,6 +77,12 @@ struct CanFilterRule
     // 2 = MODIFY: Modify the frame data before forwarding.
     uint8_t action_type;
 
+    // --- Target Direction ---
+    // 0 = BOTH (Default): Apply rule to both directions.
+    // 1 = TO_SYSTEM: Apply rule only to frames going TO the car system (from computer).
+    // 2 = TO_CAR: Apply rule only to frames going TO the car computer (from system).
+    uint8_t target;
+
     // For MODIFY action:
     // new_data = (old_data & ~modification_mask) | (modification_data & modification_mask)
     // Bits set in modification_mask will be replaced by bits from modification_data.
@@ -92,6 +98,11 @@ static const uint32_t CMD_CANBUS_TO_CAR = 0x1003;    // Inject to Car CAN
 static const uint32_t CMD_EXTERNAL_SERVICE_LOGGING_ON = 0x1004;
 static const uint32_t CMD_EXTERNAL_SERVICE_LOGGING_OFF = 0x1005;
 static const uint32_t CMD_SET_FILTERS = 0x1006;      // Set/Replace all filter rules
+
+// Filter Target Constants
+static const uint8_t FILTER_TARGET_BOTH = 0;
+static const uint8_t FILTER_TARGET_TO_SYSTEM = 1;
+static const uint8_t FILTER_TARGET_TO_CAR = 2;
 
 /**
  * @brief Interface for handling non-standard CAN commands.
