@@ -44,6 +44,8 @@ struct ExternalCanfdMessage
 static const uint32_t CMD_CANBUS_DATA = 0x1001;      // Normal traffic (Sniffer)
 static const uint32_t CMD_CANBUS_TO_SYSTEM = 0x1002; // Inject to System CAN
 static const uint32_t CMD_CANBUS_TO_CAR = 0x1003;    // Inject to Car CAN
+static const uint32_t CMD_EXTERNAL_SERVICE_LOGGING_ON = 0x1004;
+static const uint32_t CMD_EXTERNAL_SERVICE_LOGGING_OFF = 0x1005;
 
 /**
  * @brief Interface for handling non-standard CAN commands.

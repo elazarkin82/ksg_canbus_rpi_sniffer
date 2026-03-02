@@ -67,7 +67,7 @@ private:
 
     // State
     std::atomic<bool> m_running;
-    std::atomic<bool> m_interventionMode;
+    std::atomic<bool> m_externalServiceLogging;
     std::chrono::steady_clock::time_point m_lastExternalMsgTime;
 
     std::thread m_watchdogThread;
