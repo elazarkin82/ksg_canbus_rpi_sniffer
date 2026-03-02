@@ -13,7 +13,9 @@ TEST_EXECUTABLES = [
     "tcp_canbus_tester",
     "udp_communication_tester",
     "udp_canbus_tester",
-    "emulators_integration_test.py" # Updated name
+    "car_system_test.py",
+    "car_computer_test.py",
+    "emulators_integration_test.py"
 ]
 
 # Colors
@@ -85,11 +87,13 @@ def main():
 
     # 5. Copy Python Test Scripts
     print("Copying test scripts...")
-    try:
-        shutil.copy("../tests/emulators_integration_test.py", ".")
-        os.chmod("emulators_integration_test.py", 0o755)
-    except Exception as e:
-        print_colored(f"Failed to copy test script: {e}", RED)
+    scripts = ["car_system_test.py", "car_computer_test.py", "emulators_integration_test.py"]
+    for script in scripts:
+        try:
+            shutil.copy(f"../tests/{script}", ".")
+            os.chmod(script, 0o755)
+        except Exception as e:
+            print_colored(f"Failed to copy {script}: {e}", RED)
 
     print("Build successful. Running tests...")
     print("----------------------------------------")
@@ -101,8 +105,8 @@ def main():
 
     # 6. Run Tests
     for test_exe in TEST_EXECUTABLES:
-        # Skip emulator test if vcan is missing
-        if test_exe == "emulators_integration_test.py" and not vcan_ready:
+        # Skip emulator tests if vcan is missing
+        if test_exe.endswith(".py") and not vcan_ready:
             print_colored(f"Skipping {test_exe} (vcan missing)", RED)
             continue
 

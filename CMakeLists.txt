@@ -43,7 +43,3 @@ target_link_libraries(car_system_emulator Threads::Threads m)
 # Need to link with LIB_SOURCES because it uses ObdCanbusCommunication
 add_executable(car_computer_emulator emulators/car_computer/src/main.cpp emulators/car_computer/src/CarComputer.cpp ${LIB_SOURCES})
 target_link_libraries(car_computer_emulator Threads::Threads)
-
-# Emulator Tester (Old C++ tester, maybe keep or remove?)
-# add_executable(emulator_tester tests/emulator_tester.cpp ${LIB_SOURCES})
-# target_link_libraries(emulator_tester Threads::Threads)
