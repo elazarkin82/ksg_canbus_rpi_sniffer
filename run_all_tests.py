@@ -13,7 +13,7 @@ TEST_EXECUTABLES = [
     "tcp_canbus_tester",
     "udp_communication_tester",
     "udp_canbus_tester",
-    "run_emulator_test.py" # Python script
+    "emulators_integration_test.py" # Updated name
 ]
 
 # Colors
@@ -40,6 +40,7 @@ def run_command(command):
 def check_vcan():
     try:
         subprocess.check_output(["ip", "link", "show", "vcan0"], stderr=subprocess.STDOUT)
+        subprocess.check_output(["ip", "link", "show", "vcan1"], stderr=subprocess.STDOUT)
         return True
     except subprocess.CalledProcessError:
         return False
@@ -49,12 +50,12 @@ def main():
     print("       RpiCanbusSniffer Test Runner     ")
     print("========================================")
 
-    # 0. Check vcan0 (Prerequisite for emulator test)
+    # 0. Check vcan0/1 (Prerequisite for emulator test)
     vcan_ready = check_vcan()
     if not vcan_ready:
-        print_colored("WARNING: vcan0 interface not found!", RED)
+        print_colored("WARNING: vcan0/vcan1 interface not found!", RED)
         print("Some tests (emulator) will fail or be skipped.")
-        print("Please run: sudo ./car_system_canbus_emulator/setup_vcan.sh")
+        print("Please run: sudo ./emulators/setup_vcan.sh")
         print("----------------------------------------")
 
     # 1. Create Build Directory
@@ -85,8 +86,8 @@ def main():
     # 5. Copy Python Test Scripts
     print("Copying test scripts...")
     try:
-        shutil.copy("../tests/run_emulator_test.py", ".")
-        os.chmod("run_emulator_test.py", 0o755)
+        shutil.copy("../tests/emulators_integration_test.py", ".")
+        os.chmod("emulators_integration_test.py", 0o755)
     except Exception as e:
         print_colored(f"Failed to copy test script: {e}", RED)
 
@@ -100,9 +101,9 @@ def main():
 
     # 6. Run Tests
     for test_exe in TEST_EXECUTABLES:
-        # Skip emulator test if vcan0 is missing
-        if test_exe == "run_emulator_test.py" and not vcan_ready:
-            print_colored(f"Skipping {test_exe} (vcan0 missing)", RED)
+        # Skip emulator test if vcan is missing
+        if test_exe == "emulators_integration_test.py" and not vcan_ready:
+            print_colored(f"Skipping {test_exe} (vcan missing)", RED)
             continue
 
         if os.path.exists(f"./{test_exe}"):

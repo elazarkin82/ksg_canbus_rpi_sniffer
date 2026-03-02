@@ -5,7 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_C_STANDARD 99)
 
 include_directories(include)
-include_directories(car_system_canbus_emulator/include)
+include_directories(emulators/car_system/include)
+include_directories(emulators/car_computer/include)
 
 # Find Threads library (required for std::thread on Linux)
 find_package(Threads REQUIRED)
@@ -31,11 +32,29 @@ target_link_libraries(udp_communication_tester Threads::Threads)
 add_executable(udp_canbus_tester tests/udp_canbus_tester.cpp ${LIB_SOURCES})
 target_link_libraries(udp_canbus_tester Threads::Threads)
 
-# Emulator
-file(GLOB EMULATOR_SOURCES "car_system_canbus_emulator/src/*.c")
-add_executable(car_system_emulator ${EMULATOR_SOURCES})
-target_link_libraries(car_system_emulator Threads::Threads m) # Link math library
+# --- Emulators ---
 
-# Emulator Tester
-add_executable(emulator_tester tests/emulator_tester.cpp ${LIB_SOURCES})
-target_link_libraries(emulator_tester Threads::Threads)
+# Car System Emulator (Standalone Executable)
+file(GLOB CAR_SYSTEM_SOURCES "emulators/car_system/src/*.c")
+add_executable(car_system_emulator ${CAR_SYSTEM_SOURCES})
+target_link_libraries(car_system_emulator Threads::Threads m)
+
+# Car Computer Emulator (Standalone Executable)
+# Need to link with LIB_SOURCES because it uses ObdCanbusCommunication
+add_executable(car_computer_emulator emulators/car_computer/src/main.cpp emulators/car_computer/src/CarComputer.cpp ${LIB_SOURCES})
+target_link_libraries(car_computer_emulator Threads::Threads)
+
+# Wrapper Library (Shared Object for Python)
+# Compiles Car System sources with -DBUILD_AS_LIBRARY
+add_library(emulator_wrapper SHARED
+    emulators/wrapper/emulator_wrapper.cpp
+    emulators/car_computer/src/CarComputer.cpp
+    ${CAR_SYSTEM_SOURCES}
+    ${LIB_SOURCES}
+)
+target_compile_definitions(emulator_wrapper PRIVATE BUILD_AS_LIBRARY)
+target_link_libraries(emulator_wrapper Threads::Threads m)
+
+# Emulator Tester (Old C++ tester, maybe keep or remove?)
+# add_executable(emulator_tester tests/emulator_tester.cpp ${LIB_SOURCES})
+# target_link_libraries(emulator_tester Threads::Threads)

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <string.h>
 
 // Helper to encode values
 void encode_rpm(uint8_t* data, double rpm) {

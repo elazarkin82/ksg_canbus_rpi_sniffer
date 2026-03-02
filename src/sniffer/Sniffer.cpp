@@ -93,7 +93,7 @@ namespace FilterEngine
         }
     }
 
-    static bool process(uint32_t can_id, uint8_t* data, size_t len, Sniffer::CanListener::Source source)
+    static bool process(uint32_t can_id, uint8_t* data, size_t len, Sniffer::Source source)
     {
         std::lock_guard<std::mutex> lock(filter_mutex);
         communication::CanFilterRule* rule;
@@ -113,11 +113,11 @@ namespace FilterEngine
         for (int i = 0; i < count; ++i, ++rule)
         {
             // Check direction
-            if (rule->target == communication::FILTER_TARGET_TO_SYSTEM && source != Sniffer::CanListener::SOURCE_CAR_COMPUTER)
+            if (rule->target == communication::FILTER_TARGET_TO_SYSTEM && source != Sniffer::SOURCE_CAR_COMPUTER)
             {
                 continue; // Rule not for this direction
             }
-            if (rule->target == communication::FILTER_TARGET_TO_CAR && source != Sniffer::CanListener::SOURCE_CAR_SYSTEM)
+            if (rule->target == communication::FILTER_TARGET_TO_CAR && source != Sniffer::SOURCE_CAR_SYSTEM)
             {
                 continue; // Rule not for this direction
             }
@@ -162,9 +162,9 @@ namespace FilterEngine
 
 
 Sniffer::Sniffer(const SnifferParams& params)
-    : m_systemListener(*this, CanListener::SOURCE_CAR_SYSTEM),
-      m_computerListener(*this, CanListener::SOURCE_CAR_COMPUTER),
-      m_externalListener(*this, CanListener::SOURCE_EXTERNAL),
+    : m_systemListener(*this, Sniffer::SOURCE_CAR_SYSTEM),
+      m_computerListener(*this, Sniffer::SOURCE_CAR_COMPUTER),
+      m_externalListener(*this, Sniffer::SOURCE_EXTERNAL),
       m_running(false),
       m_externalServiceLogging(false),
       m_lastExternalMsgTime(std::chrono::steady_clock::now())
@@ -264,7 +264,7 @@ void Sniffer::CanListener::onError(int32_t errorCode)
     (void)errorCode;
 }
 
-void Sniffer::handleCanData(CanListener::Source source, const uint8_t* data, size_t length)
+void Sniffer::handleCanData(Source source, const uint8_t* data, size_t length)
 {
     uint8_t buffer[72]; // Max CAN FD size
     struct can_frame* frame;
@@ -286,11 +286,11 @@ void Sniffer::handleCanData(CanListener::Source source, const uint8_t* data, siz
 
     if (should_forward)
     {
-        if (source == CanListener::SOURCE_CAR_SYSTEM)
+        if (source == Sniffer::SOURCE_CAR_SYSTEM)
         {
             m_carComputerCan->send(buffer, copyLen);
         }
-        else if (source == CanListener::SOURCE_CAR_COMPUTER)
+        else if (source == Sniffer::SOURCE_CAR_COMPUTER)
         {
             m_carSystemCan->send(buffer, copyLen);
         }
@@ -301,11 +301,11 @@ void Sniffer::handleCanData(CanListener::Source source, const uint8_t* data, siz
         communication::ExternalCanfdMessage msg;
 
         memset(&msg, 0, sizeof(msg));
-        if (source == CanListener::SOURCE_CAR_SYSTEM)
+        if (source == Sniffer::SOURCE_CAR_SYSTEM)
         {
             memcpy(msg.magic_key, "canS", 4);
         }
-        else if (source == CanListener::SOURCE_CAR_COMPUTER)
+        else if (source == Sniffer::SOURCE_CAR_COMPUTER)
         {
             memcpy(msg.magic_key, "canC", 4);
         }

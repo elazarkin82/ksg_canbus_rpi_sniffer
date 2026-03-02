@@ -24,6 +24,8 @@ struct SnifferParams
 class Sniffer : public communication::ICommandListener
 {
 public:
+    enum Source { SOURCE_CAR_SYSTEM, SOURCE_CAR_COMPUTER, SOURCE_EXTERNAL };
+
     Sniffer(const SnifferParams& params);
     virtual ~Sniffer();
 
@@ -38,8 +40,6 @@ private:
     class CanListener : public base::ICommunicationListener
     {
     public:
-        enum Source { SOURCE_CAR_SYSTEM, SOURCE_CAR_COMPUTER, SOURCE_EXTERNAL };
-
         CanListener(Sniffer& parent, Source source)
             : m_parent(parent), m_source(source) {}
 
@@ -51,7 +51,7 @@ private:
         Source m_source;
     };
 
-    void handleCanData(CanListener::Source source, const uint8_t* data, size_t length);
+    void handleCanData(Source source, const uint8_t* data, size_t length);
     void watchdogLoop();
     void resetToDefault();
 
