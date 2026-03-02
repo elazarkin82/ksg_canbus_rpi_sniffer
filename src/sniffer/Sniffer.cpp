@@ -6,9 +6,154 @@
 #include <stdio.h>
 #include <string.h>
 #include <chrono>
+#include <algorithm> // For std::sort
 
 namespace sniffer
 {
+
+// --- Filter Engine ---
+namespace FilterEngine
+{
+    // --- Static Data ---
+    // Raw memory block for rules (64KB)
+    static uint8_t rules_raw_memory[65536];
+
+    // Pointer to interpret raw memory as rules array
+    static communication::CanFilterRule* rules_ptr = (communication::CanFilterRule*)rules_raw_memory;
+    static int rules_count = 0;
+
+    // Calculate MAX_RULES dynamically based on memory size and struct size
+    static const int MAX_RULES = sizeof(rules_raw_memory) / sizeof(communication::CanFilterRule);
+
+    // Lookup table: pointers into rules_ptr for each CAN ID
+    static communication::CanFilterRule* id_lookup[2048];
+    // Counts: number of rules for each CAN ID
+    static uint8_t id_counts[2048];
+
+    static std::mutex filter_mutex; // Protects access to the filter engine data
+
+    // --- Functions ---
+    static void init_internal()
+    {
+        rules_count = 0;
+        memset(rules_raw_memory, 0, sizeof(rules_raw_memory));
+        memset(id_lookup, 0, sizeof(id_lookup));
+        memset(id_counts, 0, sizeof(id_counts));
+    }
+
+    static void init()
+    {
+        std::lock_guard<std::mutex> lock(filter_mutex);
+        init_internal();
+    }
+
+    static void loadRules(const uint8_t* data, size_t length)
+    {
+        std::lock_guard<std::mutex> lock(filter_mutex);
+        size_t num_rules;
+        int i;
+
+        // 1. Reset
+        init_internal();
+
+        // 2. Copy data directly to raw memory
+        // Ensure we don't overflow the 64KB buffer
+        if (length > sizeof(rules_raw_memory))
+        {
+            length = sizeof(rules_raw_memory);
+        }
+
+        // Calculate number of full rules that fit in the received data
+        num_rules = length / sizeof(communication::CanFilterRule);
+
+        // Ensure we don't exceed our calculated MAX_RULES (though sizeof check above covers it)
+        if (num_rules > MAX_RULES)
+        {
+            num_rules = MAX_RULES;
+            length = num_rules * sizeof(communication::CanFilterRule);
+        }
+
+        memcpy(rules_raw_memory, data, length);
+        rules_count = num_rules;
+
+        // 3. Sort by CAN ID
+        // rules_ptr points to the start of rules_raw_memory
+        std::sort(rules_ptr, rules_ptr + rules_count,
+            [](const communication::CanFilterRule& a, const communication::CanFilterRule& b) {
+                return (a.can_id & 0x7FF) < (b.can_id & 0x7FF);
+            });
+
+        // 4. Build lookup table
+        for (i = 0; i < rules_count; ++i)
+        {
+            uint32_t id = rules_ptr[i].can_id & 0x7FF; // Mask priority bits
+            if (id >= 2048) continue;
+
+            if (id_counts[id] == 0)
+            {
+                id_lookup[id] = &rules_ptr[i];
+            }
+            id_counts[id]++;
+        }
+    }
+
+    static bool process(uint32_t can_id, uint8_t* data, size_t len)
+    {
+        std::lock_guard<std::mutex> lock(filter_mutex);
+        communication::CanFilterRule* rule;
+        int count;
+        uint32_t masked_id;
+
+        masked_id = can_id & 0x7FF; // Extract Standard ID
+
+        if (masked_id >= 2048 || id_counts[masked_id] == 0)
+        {
+            return true; // PASS
+        }
+
+        rule = id_lookup[masked_id];
+        count = id_counts[masked_id];
+
+        for (int i = 0; i < count; ++i, ++rule)
+        {
+            bool match = true;
+            if (rule->data_mask != 0)
+            {
+                if (len <= rule->data_index)
+                {
+                    match = false;
+                }
+                else
+                {
+                    if ((data[rule->data_index] & rule->data_mask) != rule->data_value)
+                    {
+                        match = false;
+                    }
+                }
+            }
+
+            if (match)
+            {
+                if (rule->action_type == 1) // DROP
+                {
+                    return false;
+                }
+                if (rule->action_type == 2) // MODIFY
+                {
+                    for (int j = 0; j < 8 && j < (int)len; ++j)
+                    {
+                        data[j] = (data[j] & ~rule->modification_mask[j]) |
+                                  (rule->modification_data[j] & rule->modification_mask[j]);
+                    }
+                    return true;
+                }
+                return true; // PASS
+            }
+        }
+        return true; // No rule matched
+    }
+} // namespace FilterEngine
+
 
 Sniffer::Sniffer(const SnifferParams& params)
     : m_systemListener(*this, CanListener::SOURCE_CAR_SYSTEM),
@@ -23,9 +168,10 @@ Sniffer::Sniffer(const SnifferParams& params)
     m_carComputerCan = new canbus_communication::ObdCanbusCommunication(m_computerListener, params.car_computer_can_name);
 
     // Initialize External Service (UDP)
-    // We bind to the specified port and listen for commands
     m_externalService = new communication::UdpCanbusCommunication(m_externalListener, "0.0.0.0", 0, params.external_service_port);
     m_externalService->setCommandListener(this);
+
+    FilterEngine::init();
 }
 
 Sniffer::~Sniffer()
@@ -60,7 +206,6 @@ bool Sniffer::start()
 
     m_running = true;
 
-    // Start CAN interfaces
     if (!m_carSystemCan->start())
     {
         fprintf(stderr, "Failed to start Car System CAN\n");
@@ -73,14 +218,12 @@ bool Sniffer::start()
         return false;
     }
 
-    // Start External Service
     if (!m_externalService->start())
     {
         fprintf(stderr, "Failed to start External Service\n");
         return false;
     }
 
-    // Start Watchdog Thread
     m_watchdogThread = std::thread(&Sniffer::watchdogLoop, this);
 
     return true;
@@ -112,59 +255,64 @@ void Sniffer::CanListener::onDataReceived(const uint8_t* data, size_t length)
 
 void Sniffer::CanListener::onError(int32_t errorCode)
 {
-    // Log error or handle it
     (void)errorCode;
 }
 
 void Sniffer::handleCanData(CanListener::Source source, const uint8_t* data, size_t length)
 {
+    uint8_t buffer[72]; // Max CAN FD size
+    struct can_frame* frame;
+    bool should_forward;
+    size_t copyLen;
+
     if (!m_running) return;
 
-    if (source == CanListener::SOURCE_CAR_SYSTEM)
+    // Copy data to local buffer for modification
+    copyLen = (length < sizeof(buffer)) ? length : sizeof(buffer);
+    memcpy(buffer, data, copyLen);
+
+    // The data is a raw CAN frame. We need to cast it to access ID and data.
+    // Assuming Standard CAN frame for now as ObdCanbusCommunication uses CAN_RAW
+    frame = (struct can_frame*)buffer;
+
+    // Process with filter engine
+    should_forward = FilterEngine::process(frame->can_id, frame->data, frame->can_dlc);
+
+    if (should_forward)
     {
-        // TODO: Implement filtering mechanism based on PIDs.
-        // TODO: Implement message modification logic based on PIDs if needed.
-        m_carComputerCan->send(data, length);
-
-        if (m_externalServiceLogging)
+        if (source == CanListener::SOURCE_CAR_SYSTEM)
         {
-            communication::ExternalCanfdMessage msg;
-            size_t copyLen;
+            m_carComputerCan->send(buffer, copyLen);
+        }
+        else if (source == CanListener::SOURCE_CAR_COMPUTER)
+        {
+            m_carSystemCan->send(buffer, copyLen);
+        }
+    }
 
-            memset(&msg, 0, sizeof(msg));
+    if (m_externalServiceLogging)
+    {
+        communication::ExternalCanfdMessage msg;
+
+        memset(&msg, 0, sizeof(msg));
+        if (source == CanListener::SOURCE_CAR_SYSTEM)
+        {
             memcpy(msg.magic_key, "canS", 4);
-
-            // Copy CAN frame data. Assuming 'data' points to a canfd_frame or can_frame.
-            // We copy up to the size of canfd_frame to be safe, but 'length' should be correct.
-            copyLen = (length < sizeof(msg.frame)) ? length : sizeof(msg.frame);
-            memcpy(&msg.frame, data, copyLen);
-
-            m_externalService->send((const uint8_t*)&msg, sizeof(msg));
         }
-    }
-    else if (source == CanListener::SOURCE_CAR_COMPUTER)
-    {
-        // TODO: Implement filtering mechanism based on PIDs.
-        // TODO: Implement message modification logic based on PIDs if needed.
-        m_carSystemCan->send(data, length);
-
-        if (m_externalServiceLogging)
+        else if (source == CanListener::SOURCE_CAR_COMPUTER)
         {
-            communication::ExternalCanfdMessage msg;
-            size_t copyLen;
-
-            memset(&msg, 0, sizeof(msg));
             memcpy(msg.magic_key, "canC", 4);
-
-            copyLen = (length < sizeof(msg.frame)) ? length : sizeof(msg.frame);
-            memcpy(&msg.frame, data, copyLen);
-
-            m_externalService->send((const uint8_t*)&msg, sizeof(msg));
         }
-    }
-    else if (source == CanListener::SOURCE_EXTERNAL)
-    {
-        // No use for this case.
+
+        // Log the MODIFIED frame if it was forwarded, or the ORIGINAL?
+        // Usually we want to log what was actually sent.
+        // If dropped, we might still want to log it (maybe with a flag?).
+        // For now, let's log what would be sent (the modified buffer).
+
+        copyLen = (length < sizeof(msg.frame)) ? length : sizeof(msg.frame);
+        memcpy(&msg.frame, buffer, copyLen);
+
+        m_externalService->send((const uint8_t*)&msg, sizeof(msg));
     }
 }
 
@@ -172,27 +320,27 @@ void Sniffer::onCommandReceived(uint32_t command, const uint8_t* data, size_t le
 {
     if (!m_running) return;
 
-    // Update last message time
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_lastExternalMsgTime = std::chrono::steady_clock::now();
     }
 
-    // Handle commands
-    if (command == communication::CMD_CANBUS_TO_SYSTEM)
+    if (command == communication::CMD_SET_FILTERS)
+    {
+        FilterEngine::loadRules(data, length);
+        printf("Filter rules updated\n");
+    }
+    else if (command == communication::CMD_CANBUS_TO_SYSTEM)
     {
         m_carSystemCan->send(data, length);
     }
     else if (command == communication::CMD_CANBUS_TO_CAR)
     {
-        // Assuming "Car" means the car computer side in this context?
-        // Or maybe "Car System"? The names are a bit ambiguous.
-        // Let's assume TO_CAR means to the car computer.
         m_carComputerCan->send(data, length);
     }
     else if (command == communication::CMD_CANBUS_DATA)
     {
-        // Maybe just a keep-alive or data injection
+        // Keep-alive
     }
     else if (command == communication::CMD_EXTERNAL_SERVICE_LOGGING_ON)
     {
@@ -215,13 +363,12 @@ void Sniffer::watchdogLoop()
 
         {
             std::lock_guard<std::mutex> lock(m_mutex);
-            // Check if logging is active and we haven't received a keep-alive/command recently
             if (m_externalServiceLogging)
             {
                 std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
                 int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastExternalMsgTime).count();
 
-                if (elapsed > 1000) // 1 second timeout
+                if (elapsed > 1000)
                 {
                     resetNeeded = true;
                 }
