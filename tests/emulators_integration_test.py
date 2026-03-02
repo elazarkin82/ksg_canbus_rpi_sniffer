@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
-import ctypes
+import subprocess
 import time
 import os
 import sys
 import threading
+import socket
+import struct
+import select
 
 try:
     import tkinter as tk
@@ -12,27 +15,16 @@ try:
 except ImportError:
     tk = None
 
-# Load Library
-lib_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../build/libemulator_wrapper.so'))
-# Adjust path if build directory is different
-if not os.path.exists(lib_path):
-    # Try current directory or standard build locations
-    lib_path = os.path.abspath('./libemulator_wrapper.so')
-
-if not os.path.exists(lib_path):
-    print(f"Error: Library not found at {lib_path}")
-    sys.exit(1)
-
-lib = ctypes.CDLL(lib_path)
-
-# Define Argument Types
-lib.start_system_emulator.argtypes = [ctypes.c_char_p]
-lib.start_computer_emulator.argtypes = [ctypes.c_char_p]
-lib.wrapper_get_rpm.restype = ctypes.c_double
-lib.wrapper_get_speed.restype = ctypes.c_double
-lib.wrapper_get_throttle.restype = ctypes.c_double
-lib.wrapper_get_brake.restype = ctypes.c_double
-lib.wrapper_get_steering.restype = ctypes.c_double
+# CAN Frame Structure (Standard)
+# struct can_frame {
+#     canid_t can_id;  /* 32 bit CAN_ID + EFF/RTR/ERR flags */
+#     __u8    can_dlc; /* frame payload length in byte (0 .. 8) */
+#     __u8    __pad;   /* padding */
+#     __u8    __res0;  /* reserved / padding */
+#     __u8    __res1;  /* reserved / padding */
+#     __u8    data[8] __attribute__((aligned(8)));
+# };
+CAN_FRAME_FMT = "=IB3x8s"
 
 class EmulatorGUI:
     def __init__(self, root):
@@ -82,15 +74,58 @@ class EmulatorGUI:
         x_offset = (steering / 30.0) * 80 # +/- 80 pixels
         self.steering_canvas.coords(self.steering_line, 100, 50, 100 + x_offset, 0)
 
+def open_can_socket(interface):
+    try:
+        s = socket.socket(socket.AF_CAN, socket.SOCK_RAW, socket.CAN_RAW)
+        s.bind((interface,))
+        return s
+    except Exception as e:
+        print(f"Error opening CAN socket on {interface}: {e}")
+        return None
+
+def parse_can_frame(data):
+    can_id, can_dlc, payload = struct.unpack(CAN_FRAME_FMT, data)
+    return can_id, can_dlc, payload[:can_dlc]
+
 def run_test(gui=False):
     print("Starting Emulators Integration Test...")
     
-    vcan0 = b"vcan0"
+    # Paths to executables
+    # Assuming running from build_tests directory
+    car_system_exe = "../build_tests/car_system_emulator"
+    car_computer_exe = "../build_tests/car_computer_emulator"
     
-    lib.start_system_emulator(vcan0)
-    lib.start_computer_emulator(vcan0) 
+    if not os.path.exists(car_system_exe):
+        print(f"Error: {car_system_exe} not found")
+        return
+    if not os.path.exists(car_computer_exe):
+        print(f"Error: {car_computer_exe} not found")
+        return
 
-    print("Emulators running. Monitoring...")
+    vcan0 = "vcan0"
+    vcan1 = "vcan1"
+    
+    # Start Emulators
+    # System on vcan0
+    # Computer on vcan1
+    # We will bridge them in Python
+    
+    print(f"Launching {car_system_exe} on {vcan0}")
+    proc_system = subprocess.Popen([car_system_exe, vcan0], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
+    print(f"Launching {car_computer_exe} on {vcan1}")
+    proc_computer = subprocess.Popen([car_computer_exe, vcan1], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    # Open Sockets
+    sock0 = open_can_socket(vcan0)
+    sock1 = open_can_socket(vcan1)
+    
+    if not sock0 or not sock1:
+        proc_system.terminate()
+        proc_computer.terminate()
+        return
+
+    print("Emulators running. Bridging and Monitoring...")
     
     root = None
     app = None
@@ -102,32 +137,65 @@ def run_test(gui=False):
         print("Warning: tkinter not available, running in headless mode.")
         gui = False
 
+    # State for GUI
+    state = {
+        'rpm': 0, 'speed': 0, 'throttle': 0, 'brake': 0, 'steering': 0
+    }
+
+    running = True
     start_time = time.time()
     
     try:
-        while time.time() - start_time < 20: # Run for 20 seconds with GUI
-            rpm = lib.wrapper_get_rpm()
-            speed = lib.wrapper_get_speed()
-            throttle = lib.wrapper_get_throttle()
-            brake = lib.wrapper_get_brake()
-            steering = lib.wrapper_get_steering()
+        while running and (time.time() - start_time < 20): # Run for 20 seconds
             
+            # Select on sockets
+            readable, _, _ = select.select([sock0, sock1], [], [], 0.01)
+            
+            for s in readable:
+                frame_data = s.recv(16) # sizeof(struct can_frame) = 16
+                can_id, dlc, data = parse_can_frame(frame_data)
+                
+                # Bridge
+                if s == sock0:
+                    # From System (vcan0) -> To Computer (vcan1)
+                    sock1.send(frame_data)
+                    
+                    # Parse Data for GUI
+                    if can_id == 0x100: # RPM
+                        val = (data[0] << 8) | data[1]
+                        state['rpm'] = val / 4.0
+                    elif can_id == 0x200: # Speed
+                        state['speed'] = data[0]
+                    elif can_id == 0x201: # Steering Angle
+                        val = (data[0] << 8) | data[1]
+                        state['steering'] = (val - 32768)
+                        
+                elif s == sock1:
+                    # From Computer (vcan1) -> To System (vcan0)
+                    sock0.send(frame_data)
+                    
+                    # Parse Data for GUI
+                    if can_id == 0x400: # Throttle/Brake
+                        state['throttle'] = data[0]
+                        state['brake'] = data[1]
+            
+            # Update GUI
             if gui:
-                app.update(rpm, speed, throttle, brake, steering)
+                app.update(state['rpm'], state['speed'], state['throttle'], state['brake'], state['steering'])
                 root.update()
-            else:
-                print(f"Time: {time.time()-start_time:.1f}s | RPM: {rpm:.0f} | Speed: {speed:.1f} | Thr: {throttle:.0f}% | Brk: {brake:.0f} | Str: {steering:.1f}")
-                time.sleep(0.5)
-            
-            if gui:
-                time.sleep(0.05) # Faster update for GUI
+            elif time.time() % 1.0 < 0.02: # Print every ~1s
+                 print(f"RPM: {state['rpm']:.0f} | Speed: {state['speed']:.1f} | Thr: {state['throttle']:.0f}% | Brk: {state['brake']:.0f} | Str: {state['steering']:.1f}")
 
     except KeyboardInterrupt:
         print("Interrupted by user")
+    except Exception as e:
+        print(f"Error: {e}")
 
     print("Stopping...")
-    lib.stop_computer_emulator()
-    lib.stop_system_emulator()
+    proc_system.terminate()
+    proc_computer.terminate()
+    proc_system.wait()
+    proc_computer.wait()
     
     if gui:
         root.destroy()

@@ -44,17 +44,6 @@ target_link_libraries(car_system_emulator Threads::Threads m)
 add_executable(car_computer_emulator emulators/car_computer/src/main.cpp emulators/car_computer/src/CarComputer.cpp ${LIB_SOURCES})
 target_link_libraries(car_computer_emulator Threads::Threads)
 
-# Wrapper Library (Shared Object for Python)
-# Compiles Car System sources with -DBUILD_AS_LIBRARY
-add_library(emulator_wrapper SHARED
-    emulators/wrapper/emulator_wrapper.cpp
-    emulators/car_computer/src/CarComputer.cpp
-    ${CAR_SYSTEM_SOURCES}
-    ${LIB_SOURCES}
-)
-target_compile_definitions(emulator_wrapper PRIVATE BUILD_AS_LIBRARY)
-target_link_libraries(emulator_wrapper Threads::Threads m)
-
 # Emulator Tester (Old C++ tester, maybe keep or remove?)
 # add_executable(emulator_tester tests/emulator_tester.cpp ${LIB_SOURCES})
 # target_link_libraries(emulator_tester Threads::Threads)
