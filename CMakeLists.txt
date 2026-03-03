@@ -43,3 +43,10 @@ target_link_libraries(car_system_emulator Threads::Threads m)
 # Need to link with LIB_SOURCES because it uses ObdCanbusCommunication
 add_executable(car_computer_emulator emulators/car_computer/src/main.cpp emulators/car_computer/src/CarComputer.cpp ${LIB_SOURCES})
 target_link_libraries(car_computer_emulator Threads::Threads)
+
+# --- Sniffer Test Library ---
+add_library(sniffer_test_lib SHARED
+    tests/sniffer_test_lib.cpp
+    ${LIB_SOURCES}
+)
+target_link_libraries(sniffer_test_lib Threads::Threads)

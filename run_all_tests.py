@@ -15,7 +15,8 @@ TEST_EXECUTABLES = [
     "udp_canbus_tester",
     "car_system_test.py",
     "car_computer_test.py",
-    "emulators_integration_test.py"
+    "emulators_integration_test.py",
+    "run_sniffer_test.py" # Added
 ]
 
 # Colors
@@ -87,7 +88,7 @@ def main():
 
     # 5. Copy Python Test Scripts
     print("Copying test scripts...")
-    scripts = ["car_system_test.py", "car_computer_test.py", "emulators_integration_test.py"]
+    scripts = ["car_system_test.py", "car_computer_test.py", "emulators_integration_test.py", "run_sniffer_test.py"]
     for script in scripts:
         try:
             shutil.copy(f"../tests/{script}", ".")
