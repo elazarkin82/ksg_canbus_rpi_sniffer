@@ -67,10 +67,10 @@ public:
     void sendV1(const char* magic, uint32_t cmd, const uint8_t* data, uint32_t len) {
         ExternalMessageV1 msg;
         memset(&msg, 0, sizeof(msg));
-        strncpy(msg.magic_key, magic, 4);
+        strncpy(msg.magic_key, magic, 8); // Updated to 8 bytes
         msg.command = cmd;
         msg.data_size = len;
-        if (len > 0 && len <= 1024) memcpy(msg.data, data, len);
+        if (len > 0 && len <= 65536) memcpy(msg.data, data, len); // Updated to 64KB
         sendRaw(&msg, sizeof(msg));
     }
 

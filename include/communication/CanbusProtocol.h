@@ -14,7 +14,7 @@ namespace communication
  * @brief Defines a fixed-size protocol message for communication (V1).
  *
  * This structure is designed for simplicity and stability over efficiency.
- * It uses a large, fixed-size payload buffer (64KB) to ensure that
+ * It uses a large, fixed-size payload buffer (64000 bytes) to ensure that
  * each message sent over the network has a consistent size.
  */
 #pragma pack(push, 1)
@@ -24,8 +24,13 @@ struct ExternalMessageV1
     uint32_t command;           // Command ID
     char pad[128];              // Reserved for future use
     uint32_t data_size;         // Size of the following data payload
-    uint8_t data[65536];        // Fixed size payload buffer (64KB)
+    uint8_t data[64000];        // Fixed size payload buffer (64000 bytes)
 };
+
+static inline size_t calculateExternalMessageV1Size(uint32_t dataSize)
+{
+    return sizeof(ExternalMessageV1) - sizeof(ExternalMessageV1::data) + dataSize;
+}
 
 /**
  * @brief Defines a lightweight protocol message for CAN FD frames.

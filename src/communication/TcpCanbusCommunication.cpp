@@ -35,6 +35,10 @@ void TcpCanbusCommunication::onError(int32_t errorCode)
 
 void TcpCanbusCommunication::processBuffer(const uint8_t* data, size_t length)
 {
+#ifdef DEBUG
+    printf("[TcpCanbus] Received %zu bytes\n", length);
+#endif
+
     if (length < 4)
     {
         fprintf(stderr, "Buffer too small for magic key (%zu bytes). Dropping.\n", length);
@@ -42,37 +46,47 @@ void TcpCanbusCommunication::processBuffer(const uint8_t* data, size_t length)
     }
 
     // Check for V1 Protocol ("v1.00")
-    if (strncmp((const char*)data, "v1.00", 4) == 0)
+    // Note: Magic key is now 8 bytes, but we check first 5 to be safe
+    if (strncmp((const char*)data, "v1.00", 5) == 0)
     {
-        if (length >= sizeof(ExternalMessageV1))
+        if (length <= sizeof(ExternalMessageV1))
         {
-            const ExternalMessageV1* msg = (const ExternalMessageV1*)data;
+            const size_t headerSize = calculateExternalMessageV1Size(0);
 
-            if (msg->data_size <= 1024)
+            if (length >= headerSize)
             {
-                if (msg->command == CMD_CANBUS_DATA)
+                const ExternalMessageV1* msg = (const ExternalMessageV1*)data;
+
+                if (msg->data_size <= sizeof(ExternalMessageV1::data) && length >= calculateExternalMessageV1Size(msg->data_size))
                 {
-                    // Forward CAN data to the main listener
-                    m_targetListener.onDataReceived(msg->data, msg->data_size);
-                }
-                else if (m_commandListener)
-                {
-                    // Forward other commands to the command listener
-                    m_commandListener->onCommandReceived(msg->command, msg->data, msg->data_size);
+                    if (msg->command == CMD_CANBUS_DATA)
+                    {
+                        // Forward CAN data to the main listener
+                        m_targetListener.onDataReceived(msg->data, msg->data_size);
+                    }
+                    else if (m_commandListener)
+                    {
+                        // Forward other commands to the command listener
+                        m_commandListener->onCommandReceived(msg->command, msg->data, msg->data_size);
+                    }
+                    else
+                    {
+                        // TODO: Handle unhandled commands internally or log
+                    }
                 }
                 else
                 {
-                    // TODO: Handle unhandled commands internally or log
+                    fprintf(stderr, "Dropping invalid packet! Data size %u exceeds limit or buffer incomplete.\n", msg->data_size);
                 }
             }
             else
             {
-                fprintf(stderr, "Dropping invalid packet! Received with magic key 'v1.00', but data size exceeds 1024 bytes limit. Possible protocol version mismatch.\n");
+                fprintf(stderr, "Incomplete V1 header. Got %zu, expected at least %zu. Dropping buffer.\n", length, headerSize);
             }
         }
         else
         {
-            fprintf(stderr, "Incomplete V1 message. Dropping buffer.\n");
+            fprintf(stderr, "Buffer larger than max V1 message. Got %zu. Dropping buffer.\n", length);
         }
     }
     // Check for CANFD Protocol ("canf")
@@ -83,7 +97,6 @@ void TcpCanbusCommunication::processBuffer(const uint8_t* data, size_t length)
             const ExternalCanfdMessage* msg = (const ExternalCanfdMessage*)data;
 
             // Forward raw CAN FD frame to the main listener
-            // Note: The listener expects raw bytes, so we send the struct canfd_frame directly.
             m_targetListener.onDataReceived((const uint8_t*)&msg->frame, sizeof(struct canfd_frame));
         }
         else
@@ -94,6 +107,9 @@ void TcpCanbusCommunication::processBuffer(const uint8_t* data, size_t length)
     else
     {
         fprintf(stderr, "Unknown magic key. Dropping buffer.\n");
+#ifdef DEBUG
+        printf("Magic: %02X %02X %02X %02X\n", data[0], data[1], data[2], data[3]);
+#endif
     }
 }
 

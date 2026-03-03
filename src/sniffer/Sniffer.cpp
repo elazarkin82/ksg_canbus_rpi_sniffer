@@ -15,8 +15,8 @@ namespace sniffer
 namespace FilterEngine
 {
     // --- Static Data ---
-    // Raw memory block for rules (64KB)
-    static uint8_t rules_raw_memory[65536];
+    // Raw memory block for rules (64000 bytes)
+    static uint8_t rules_raw_memory[64000];
 
     // Pointer to interpret raw memory as rules array
     static communication::CanFilterRule* rules_ptr = (communication::CanFilterRule*)rules_raw_memory;
