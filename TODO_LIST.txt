@@ -10,15 +10,17 @@
 - [ ] **Action Chaining:** Allow multiple actions per rule (e.g., Modify AND Log).
 - [ ] **Performance Metrics:** Measure and log processing latency per frame.
 
-## Application & Configuration (main.cpp)
+## Application Logic (MainService)
+- [ ] **Create MainService Class:** Encapsulate configuration and lifecycle logic in a dedicated class, separating it from the raw `main()` entry point.
 - [ ] **Properties File Manager:** Implement logic to load/save `sniffer.prop`.
     - Format: `KEY=VALUE` (e.g., `car_system_can_name=vcan0`).
     - Create default file if missing.
-- [ ] **Dynamic Reconfiguration:** Implement a mechanism in `main.cpp` to restart the `Sniffer` instance upon request.
-- [ ] **System Callback:** Implement a callback function in `main` to handle system commands (`CMD_SET_PARAMS`) received by the Sniffer.
+- [ ] **Dynamic Reconfiguration:** Implement a mechanism in `MainService` to restart the `Sniffer` instance upon request.
+- [ ] **System Callback:** Implement a callback function in `MainService` to handle system commands (`CMD_SET_PARAMS`) received by the Sniffer.
     - Parse the payload (newline-separated key-values).
     - Update `sniffer.prop`.
     - Trigger a restart of the Sniffer service.
+- [ ] **Crash Logging:** Implement signal handlers (SIGSEGV, etc.) in `main.cpp` to log stack traces or error details on crash.
 
 ## Sniffer Core Extensions
 - [ ] **System Callback Hook:** Add `setSystemCallback` to `Sniffer` class to allow the main application to intercept system-level commands (like configuration updates).

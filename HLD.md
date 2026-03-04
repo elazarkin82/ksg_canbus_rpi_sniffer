@@ -13,6 +13,7 @@ graph TD
         CC[Car Computer CAN] <-->|SocketCAN| Sniffer
         Sniffer <-->|Internal| FilterEngine
         Sniffer <-->|UDP| Network
+        MainService -->|Lifecycle| Sniffer
     end
 
     subgraph "External PC"
@@ -36,6 +37,16 @@ graph TD
 4.  **Logging:** If enabled, frames are wrapped in `ExternalCanfdMessage` and sent via UDP to the External Server.
 
 ## 3. Module Design
+
+### 3.0 Application Entry Point (`MainService`)
+*   **`MainService` Class:** Encapsulates the application lifecycle logic, separating it from the raw `main()` function.
+    *   **Configuration Manager:** Loads and saves `sniffer.prop`. Creates default configuration if missing.
+    *   **Lifecycle Management:** Handles the creation, starting, stopping, and restarting of the `Sniffer` instance.
+    *   **System Callback:** Implements the callback for `CMD_SET_PARAMS` and `CMD_RESTART`, triggering a configuration reload and service restart.
+*   **`main.cpp`:**
+    *   Minimal entry point.
+    *   Instantiates and runs `MainService`.
+    *   Sets up signal handlers (SIGINT, SIGTERM) and crash logging (SIGSEGV) to ensure graceful shutdown and diagnostics.
 
 ### 3.1 Core (Sniffer)
 *   **`Sniffer` Class:** The main orchestrator.
