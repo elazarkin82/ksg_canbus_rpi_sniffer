@@ -9,7 +9,7 @@ import shutil
 # Configuration
 BUILD_DIR = "build_tests"
 TEST_EXECUTABLES = [
-    "params_tester", # Added
+    "params_tester",
     "tcp_communication_tester", 
     "tcp_canbus_tester",
     "udp_communication_tester",
@@ -17,7 +17,8 @@ TEST_EXECUTABLES = [
     "car_system_test.py",
     "car_computer_test.py",
     "emulators_integration_test.py",
-    "run_sniffer_test.py"
+    "run_sniffer_test.py",
+    "main_service_tester.py" # Added
 ]
 
 # Colors
@@ -89,7 +90,7 @@ def main():
 
     # 5. Copy Python Test Scripts
     print("Copying test scripts...")
-    scripts = ["car_system_test.py", "car_computer_test.py", "emulators_integration_test.py", "run_sniffer_test.py"]
+    scripts = ["car_system_test.py", "car_computer_test.py", "emulators_integration_test.py", "run_sniffer_test.py", "main_service_tester.py"]
     for script in scripts:
         try:
             shutil.copy(f"../tests/{script}", ".")

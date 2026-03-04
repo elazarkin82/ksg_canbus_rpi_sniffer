@@ -7,6 +7,7 @@ set(CMAKE_C_STANDARD 99)
 include_directories(include)
 include_directories(emulators/car_system/include)
 include_directories(emulators/car_computer/include)
+include_directories(external_server/include) # For sniffer_client.h
 
 # Find Threads library (required for std::thread on Linux)
 find_package(Threads REQUIRED)
@@ -53,3 +54,19 @@ add_library(sniffer_test_lib SHARED
     ${LIB_SOURCES}
 )
 target_link_libraries(sniffer_test_lib Threads::Threads)
+
+# --- Main Service Library (for Python Tests) ---
+add_library(main_service_lib SHARED
+    tests/wrapper/main_service_wrapper.cpp
+    src/core/MainService.cpp
+    ${LIB_SOURCES}
+)
+target_link_libraries(main_service_lib Threads::Threads)
+
+# --- Sniffer Client Library (SDK) ---
+add_library(sniffer_client SHARED
+    external_server/src/sniffer_client.cpp
+    src/communication/UdpCanbusCommunication.cpp
+    src/communication/UdpCommunication.cpp
+)
+target_link_libraries(sniffer_client Threads::Threads)
