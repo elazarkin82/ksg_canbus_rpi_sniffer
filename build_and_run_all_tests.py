@@ -56,21 +56,29 @@ def create_release():
     print("           Creating Release             ")
     print("========================================")
     
-    if os.path.exists(RELEASE_DIR):
-        shutil.rmtree(RELEASE_DIR)
-    os.makedirs(RELEASE_DIR)
+    # We are inside BUILD_DIR
+    release_root = os.path.abspath("../release")
+    project_root = os.path.abspath("..")
+    
+    if os.path.exists(release_root):
+        shutil.rmtree(release_root)
+    os.makedirs(release_root)
 
     # 1. Sniffer Service (Ubuntu)
-    ubuntu_dir = os.path.join(RELEASE_DIR, "sniffer_service_release", "ubuntu")
+    ubuntu_dir = os.path.join(release_root, "sniffer_service_release", "ubuntu")
     os.makedirs(ubuntu_dir)
-    shutil.copy(os.path.join(BUILD_DIR, "sniffer_service"), ubuntu_dir)
-    print(f"Copied sniffer_service (Ubuntu) to {ubuntu_dir}")
+    
+    if os.path.exists("sniffer_service"):
+        shutil.copy("sniffer_service", ubuntu_dir)
+        print(f"Copied sniffer_service (Ubuntu) to {ubuntu_dir}")
+    else:
+        print_colored("sniffer_service not found in build directory!", RED)
 
     # 2. Sniffer Service (RPi)
-    rpi_dir = os.path.join(RELEASE_DIR, "sniffer_service_release", "rpi")
+    rpi_dir = os.path.join(release_root, "sniffer_service_release", "rpi")
     os.makedirs(rpi_dir)
     
-    # Check for toolchain
+    # Check for toolchain (relative to build dir)
     toolchain_file = os.path.abspath("../toolchain-rpi.cmake")
     if os.path.exists(toolchain_file):
         print("Building for RPi...")
@@ -78,7 +86,8 @@ def create_release():
         if not os.path.exists(build_rpi_dir):
             os.makedirs(build_rpi_dir)
         
-        if run_command(f"cmake -DCMAKE_TOOLCHAIN_FILE={toolchain_file} ..", cwd=build_rpi_dir) == 0:
+        # Use project_root instead of ..
+        if run_command(f"cmake -DCMAKE_TOOLCHAIN_FILE={toolchain_file} {project_root}", cwd=build_rpi_dir) == 0:
             if run_command("make sniffer_service", cwd=build_rpi_dir) == 0:
                 shutil.copy(os.path.join(build_rpi_dir, "sniffer_service"), rpi_dir)
                 print(f"Copied sniffer_service (RPi) to {rpi_dir}")
@@ -90,7 +99,7 @@ def create_release():
         print("Toolchain file not found, skipping RPi build.")
 
     # 3. External Service
-    ext_dir = os.path.join(RELEASE_DIR, "external_service_release")
+    ext_dir = os.path.join(release_root, "external_service_release")
     os.makedirs(ext_dir)
     
     # Copy Python code
@@ -99,12 +108,11 @@ def create_release():
         shutil.copytree(src_python, ext_dir, dirs_exist_ok=True)
     
     # Copy Library
-    lib_path = os.path.join(BUILD_DIR, "libsniffer_client.so")
-    if os.path.exists(lib_path):
+    if os.path.exists("libsniffer_client.so"):
         backend_dir = os.path.join(ext_dir, "backend")
         if not os.path.exists(backend_dir):
             os.makedirs(backend_dir)
-        shutil.copy(lib_path, backend_dir)
+        shutil.copy("libsniffer_client.so", backend_dir)
         print(f"Copied libsniffer_client.so to {backend_dir}")
     else:
         print_colored("libsniffer_client.so not found!", RED)
