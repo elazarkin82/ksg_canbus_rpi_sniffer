@@ -39,6 +39,25 @@ int open_can_socket(const char* iface) {
     return s;
 }
 
+void flush_socket(int s) {
+    struct can_frame frame;
+    fd_set rdfs;
+    struct timeval tv;
+
+    while (true) {
+        FD_ZERO(&rdfs);
+        FD_SET(s, &rdfs);
+        tv.tv_sec = 0;
+        tv.tv_usec = 0; // Non-blocking check
+
+        if (select(s + 1, &rdfs, NULL, NULL, &tv) > 0) {
+            read(s, &frame, sizeof(frame));
+        } else {
+            break;
+        }
+    }
+}
+
 bool read_can_frame(int s, uint32_t expected_id, uint8_t* out_data, int timeout_ms) {
     struct can_frame frame;
     auto start = std::chrono::steady_clock::now();
@@ -49,8 +68,6 @@ bool read_can_frame(int s, uint32_t expected_id, uint8_t* out_data, int timeout_
             return false; // Timeout
         }
 
-        // Non-blocking read check (using select or just MSG_DONTWAIT if set, but here we use simple loop with small sleep)
-        // Better to use select/poll
         fd_set rdfs;
         FD_ZERO(&rdfs);
         FD_SET(s, &rdfs);
@@ -86,7 +103,7 @@ void send_udp_command(uint32_t cmd, const void* data, size_t len, int port) {
     if (len > 0) memcpy(msg.data, data, len);
 
     // Calculate actual size to send
-    size_t send_len = sizeof(msg) - sizeof(msg.data) + len;
+    size_t send_len = calculateExternalMessageV1Size(len);
     sendto(s, &msg, send_len, 0, (struct sockaddr*)&addr, sizeof(addr));
     close(s);
 }
@@ -95,8 +112,7 @@ void send_udp_command(uint32_t cmd, const void* data, size_t len, int port) {
 
 bool test_passthrough(int s_sys, int s_comp) {
     std::cout << "[TEST] Passthrough: Checking if RPM (0x100) passes from System to Computer..." << std::endl;
-    // RPM is sent by emulator on vcan0 (System). Sniffer should forward to vcan1 (Computer).
-    // We listen on vcan1 (s_comp).
+    flush_socket(s_comp);
     if (read_can_frame(s_comp, 0x100, NULL, 2000)) {
         std::cout << " -> PASSED" << std::endl;
         return true;
@@ -117,6 +133,8 @@ bool test_drop_rule(int s_sys, int s_comp, int port) {
 
     send_udp_command(CMD_SET_FILTERS, &rule, sizeof(rule), port);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    flush_socket(s_comp); // Clear old messages
 
     // Check if 0x200 is received on vcan1
     if (!read_can_frame(s_comp, 0x200, NULL, 1000)) {
@@ -140,6 +158,8 @@ bool test_modify_rule(int s_sys, int s_comp, int port) {
 
     send_udp_command(CMD_SET_FILTERS, &rule, sizeof(rule), port);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    flush_socket(s_comp); // Clear old messages
 
     uint8_t data[8];
     if (read_can_frame(s_comp, 0x100, data, 2000)) {
@@ -184,8 +204,6 @@ extern "C" int run_all_sniffer_tests() {
 
     if (!test_passthrough(s_sys, s_comp)) all_passed = false;
 
-    // Clear rules before next test (send empty rule set? or just overwrite)
-    // For now, test_drop overwrites.
     if (!test_drop_rule(s_sys, s_comp, params.external_service_port)) all_passed = false;
 
     if (!test_modify_rule(s_sys, s_comp, params.external_service_port)) all_passed = false;
