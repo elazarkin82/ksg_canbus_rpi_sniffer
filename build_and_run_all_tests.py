@@ -9,6 +9,7 @@ import shutil
 # Configuration
 BUILD_DIR = "build_tests"
 TEST_EXECUTABLES = [
+    "params_tester", # Added
     "tcp_communication_tester", 
     "tcp_canbus_tester",
     "udp_communication_tester",
@@ -16,7 +17,7 @@ TEST_EXECUTABLES = [
     "car_system_test.py",
     "car_computer_test.py",
     "emulators_integration_test.py",
-    "run_sniffer_test.py" # Added
+    "run_sniffer_test.py"
 ]
 
 # Colors

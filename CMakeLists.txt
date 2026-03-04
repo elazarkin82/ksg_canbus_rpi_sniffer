@@ -32,6 +32,9 @@ target_link_libraries(udp_communication_tester Threads::Threads)
 add_executable(udp_canbus_tester tests/udp_canbus_tester.cpp ${LIB_SOURCES})
 target_link_libraries(udp_canbus_tester Threads::Threads)
 
+add_executable(params_tester tests/params_tester.cpp)
+target_link_libraries(params_tester Threads::Threads)
+
 # --- Emulators ---
 
 # Car System Emulator (Standalone Executable)
