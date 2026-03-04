@@ -1,0 +1,20 @@
+# Project TODO List
+
+## Protocol & Communication
+- [ ] **Configuration Streaming:** Add `CMD_SET_PARAMS` to allow sending global configuration (e.g., interface names, timeouts) from External Server to Sniffer.
+- [ ] **Status Reporting:** Add `CMD_STATUS_REPORT` for the Sniffer to report its health, load, and active mode to the External Server.
+- [ ] **Session Recovery:** Implement logic in SDK to re-send filters/config if the Sniffer restarts.
+
+## Sniffer Core
+- [ ] **Complex Filters:** Extend `CanFilterRule` to support multi-byte conditions or logical AND/OR.
+- [ ] **Action Chaining:** Allow multiple actions per rule (e.g., Modify AND Log).
+- [ ] **Performance Metrics:** Measure and log processing latency per frame.
+
+## External Server (Python)
+- [ ] **GUI Implementation:** Complete the implementation of the GUI modules defined in `EXTERNAL_SERVER_SPEC.md` (Dashboard, Reverse Engineering, Cockpit).
+- [ ] **Profile Management:** Implement saving/loading of vehicle profiles (decoders, mappings).
+- [ ] **Data Recording:** Add feature to record CAN traffic to a file (CSV/PCAP) for offline analysis.
+
+## Testing
+- [ ] **Load Testing:** Create a test to flood the Sniffer/SDK with high-frequency messages and verify stability.
+- [ ] **Fuzz Testing:** Send malformed UDP packets to the Sniffer to ensure robustness.
