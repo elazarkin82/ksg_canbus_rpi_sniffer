@@ -103,6 +103,7 @@ static const uint32_t CMD_CANBUS_TO_CAR = 0x1003;    // Inject to Car CAN
 static const uint32_t CMD_EXTERNAL_SERVICE_LOGGING_ON = 0x1004;
 static const uint32_t CMD_EXTERNAL_SERVICE_LOGGING_OFF = 0x1005;
 static const uint32_t CMD_SET_FILTERS = 0x1006;      // Set/Replace all filter rules
+static const uint32_t CMD_SET_PARAMS = 0x1007;       // Set configuration parameters
 
 // Filter Target Constants
 static const uint8_t FILTER_TARGET_BOTH = 0;

@@ -10,6 +10,20 @@
 - [ ] **Action Chaining:** Allow multiple actions per rule (e.g., Modify AND Log).
 - [ ] **Performance Metrics:** Measure and log processing latency per frame.
 
+## Application & Configuration (main.cpp)
+- [ ] **Properties File Manager:** Implement logic to load/save `sniffer.prop`.
+    - Format: `KEY=VALUE` (e.g., `car_system_can_name=vcan0`).
+    - Create default file if missing.
+- [ ] **Dynamic Reconfiguration:** Implement a mechanism in `main.cpp` to restart the `Sniffer` instance upon request.
+- [ ] **System Callback:** Implement a callback function in `main` to handle system commands (`CMD_SET_PARAMS`) received by the Sniffer.
+    - Parse the payload (newline-separated key-values).
+    - Update `sniffer.prop`.
+    - Trigger a restart of the Sniffer service.
+
+## Sniffer Core Extensions
+- [ ] **System Callback Hook:** Add `setSystemCallback` to `Sniffer` class to allow the main application to intercept system-level commands (like configuration updates).
+- [ ] **Command Forwarding:** Update `onCommandReceived` to forward `CMD_SET_PARAMS` and `CMD_RESTART` to the registered system callback.
+
 ## External Server (Python)
 - [ ] **GUI Implementation:** Complete the implementation of the GUI modules defined in `EXTERNAL_SERVER_SPEC.md` (Dashboard, Reverse Engineering, Cockpit).
 - [ ] **Profile Management:** Implement saving/loading of vehicle profiles (decoders, mappings).
