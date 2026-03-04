@@ -8,6 +8,7 @@ import shutil
 
 # Configuration
 BUILD_DIR = "build_tests"
+RELEASE_DIR = "release"
 TEST_EXECUTABLES = [
     "params_tester",
     "tcp_communication_tester", 
@@ -18,7 +19,7 @@ TEST_EXECUTABLES = [
     "car_computer_test.py",
     "emulators_integration_test.py",
     "run_sniffer_test.py",
-    "main_service_tester.py" # Added
+    "main_service_tester.py"
 ]
 
 # Colors
@@ -29,13 +30,13 @@ NC = '\033[0m' # No Color
 def print_colored(text, color):
     print(f"{color}{text}{NC}")
 
-def run_command(command):
+def run_command(command, cwd=None):
     try:
-        # Run command in the current working directory (which will be BUILD_DIR)
         result = subprocess.run(
             command,
             check=False,
-            shell=True
+            shell=True,
+            cwd=cwd
         )
         return result.returncode
     except Exception as e:
@@ -49,6 +50,66 @@ def check_vcan():
         return True
     except subprocess.CalledProcessError:
         return False
+
+def create_release():
+    print("========================================")
+    print("           Creating Release             ")
+    print("========================================")
+    
+    if os.path.exists(RELEASE_DIR):
+        shutil.rmtree(RELEASE_DIR)
+    os.makedirs(RELEASE_DIR)
+
+    # 1. Sniffer Service (Ubuntu)
+    ubuntu_dir = os.path.join(RELEASE_DIR, "sniffer_service_release", "ubuntu")
+    os.makedirs(ubuntu_dir)
+    shutil.copy(os.path.join(BUILD_DIR, "sniffer_service"), ubuntu_dir)
+    print(f"Copied sniffer_service (Ubuntu) to {ubuntu_dir}")
+
+    # 2. Sniffer Service (RPi)
+    rpi_dir = os.path.join(RELEASE_DIR, "sniffer_service_release", "rpi")
+    os.makedirs(rpi_dir)
+    
+    # Check for toolchain
+    toolchain_file = os.path.abspath("../toolchain-rpi.cmake")
+    if os.path.exists(toolchain_file):
+        print("Building for RPi...")
+        build_rpi_dir = "build_rpi"
+        if not os.path.exists(build_rpi_dir):
+            os.makedirs(build_rpi_dir)
+        
+        if run_command(f"cmake -DCMAKE_TOOLCHAIN_FILE={toolchain_file} ..", cwd=build_rpi_dir) == 0:
+            if run_command("make sniffer_service", cwd=build_rpi_dir) == 0:
+                shutil.copy(os.path.join(build_rpi_dir, "sniffer_service"), rpi_dir)
+                print(f"Copied sniffer_service (RPi) to {rpi_dir}")
+            else:
+                print_colored("Failed to build for RPi", RED)
+        else:
+            print_colored("Failed to configure for RPi", RED)
+    else:
+        print("Toolchain file not found, skipping RPi build.")
+
+    # 3. External Service
+    ext_dir = os.path.join(RELEASE_DIR, "external_service_release")
+    os.makedirs(ext_dir)
+    
+    # Copy Python code
+    src_python = "../external_server/python"
+    if os.path.exists(src_python):
+        shutil.copytree(src_python, ext_dir, dirs_exist_ok=True)
+    
+    # Copy Library
+    lib_path = os.path.join(BUILD_DIR, "libsniffer_client.so")
+    if os.path.exists(lib_path):
+        backend_dir = os.path.join(ext_dir, "backend")
+        if not os.path.exists(backend_dir):
+            os.makedirs(backend_dir)
+        shutil.copy(lib_path, backend_dir)
+        print(f"Copied libsniffer_client.so to {backend_dir}")
+    else:
+        print_colored("libsniffer_client.so not found!", RED)
+
+    print_colored("Release created successfully!", GREEN)
 
 def main():
     print("========================================")
@@ -147,6 +208,7 @@ def main():
 
     if failed_tests == 0:
         print_colored("ALL TESTS PASSED!", GREEN)
+        create_release() # Create release if tests passed
         sys.exit(0)
     else:
         print_colored("SOME TESTS FAILED:", RED)

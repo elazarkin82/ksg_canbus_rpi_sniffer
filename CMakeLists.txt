@@ -7,7 +7,7 @@ set(CMAKE_C_STANDARD 99)
 include_directories(include)
 include_directories(emulators/car_system/include)
 include_directories(emulators/car_computer/include)
-include_directories(external_server/include) # For sniffer_client.h
+include_directories(external_server/include)
 
 # Find Threads library (required for std::thread on Linux)
 find_package(Threads REQUIRED)
@@ -17,8 +17,8 @@ file(GLOB_RECURSE LIB_SOURCES "src/*.cpp" "src/*.c")
 list(REMOVE_ITEM LIB_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
 
 # Main Executable (includes main.cpp)
-add_executable(RpiCanbusSniffer src/main.cpp ${LIB_SOURCES})
-target_link_libraries(RpiCanbusSniffer Threads::Threads)
+add_executable(sniffer_service src/main.cpp ${LIB_SOURCES})
+target_link_libraries(sniffer_service Threads::Threads)
 
 # Test Executables
 add_executable(tcp_communication_tester tests/tcp_communication_tester.cpp ${LIB_SOURCES})
