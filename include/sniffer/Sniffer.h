@@ -21,6 +21,13 @@ struct SnifferParams
     uint16_t external_service_port;
 };
 
+class ISystemCallback
+{
+public:
+    virtual ~ISystemCallback() {}
+    virtual void onSystemCommand(uint32_t cmd, const uint8_t* data, size_t len) = 0;
+};
+
 class Sniffer : public communication::ICommandListener
 {
 public:
@@ -31,6 +38,8 @@ public:
 
     bool start();
     void stop();
+
+    void setSystemCallback(ISystemCallback* callback);
 
     // --- ICommandListener Implementation (from External Service) ---
     virtual void onCommandReceived(uint32_t command, const uint8_t* data, size_t length) override;
@@ -69,6 +78,8 @@ private:
     std::atomic<bool> m_running;
     std::atomic<bool> m_externalServiceLogging;
     std::chrono::steady_clock::time_point m_lastExternalMsgTime;
+
+    ISystemCallback* m_systemCallback;
 
     std::thread m_watchdogThread;
     std::mutex m_mutex; // Protects shared state

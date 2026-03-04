@@ -167,7 +167,8 @@ Sniffer::Sniffer(const SnifferParams& params)
       m_externalListener(*this, Sniffer::SOURCE_EXTERNAL),
       m_running(false),
       m_externalServiceLogging(false),
-      m_lastExternalMsgTime(std::chrono::steady_clock::now())
+      m_lastExternalMsgTime(std::chrono::steady_clock::now()),
+      m_systemCallback(nullptr)
 {
     // Initialize CAN interfaces
     m_carSystemCan = new canbus_communication::ObdCanbusCommunication(m_systemListener, params.car_system_can_name);
@@ -252,6 +253,12 @@ void Sniffer::stop()
     if (m_carSystemCan) m_carSystemCan->stop();
     if (m_carComputerCan) m_carComputerCan->stop();
     if (m_externalService) m_externalService->stop();
+}
+
+void Sniffer::setSystemCallback(ISystemCallback* callback)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_systemCallback = callback;
 }
 
 void Sniffer::CanListener::onDataReceived(const uint8_t* data, size_t length)
@@ -357,6 +364,14 @@ void Sniffer::onCommandReceived(uint32_t command, const uint8_t* data, size_t le
     {
         m_externalServiceLogging = false;
         printf("External Service Logging OFF\n");
+    }
+    else if (command == communication::CMD_SET_PARAMS)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_systemCallback)
+        {
+            m_systemCallback->onSystemCommand(command, data, length);
+        }
     }
 }
 
