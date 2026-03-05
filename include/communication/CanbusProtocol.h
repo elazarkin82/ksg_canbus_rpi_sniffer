@@ -105,6 +105,10 @@ static const uint32_t CMD_EXTERNAL_SERVICE_LOGGING_OFF = 0x1005;
 static const uint32_t CMD_SET_FILTERS = 0x1006;      // Set/Replace all filter rules
 static const uint32_t CMD_SET_PARAMS = 0x1007;       // Set configuration parameters
 
+// Log Commands (From Sniffer to External Server)
+static const uint32_t CMD_CAN_MSG_FROM_SYSTEM = 0x2001; // Log: Message originated from System
+static const uint32_t CMD_CAN_MSG_FROM_COMPUTER = 0x2002; // Log: Message originated from Computer
+
 // Filter Target Constants
 static const uint8_t FILTER_TARGET_BOTH = 0;
 static const uint8_t FILTER_TARGET_TO_SYSTEM = 1;

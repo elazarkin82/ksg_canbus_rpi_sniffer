@@ -24,6 +24,7 @@ class UdpClient:
         paths = [
             os.path.join(base_path, '../../build/libsniffer_client.so'), # If running from src
             os.path.join(base_path, '../../../build/external_server/libsniffer_client.so'), # Standard build
+            os.path.abspath('./backend/libsniffer_client.so'), # Release structure
             os.path.abspath('./libsniffer_client.so') # Current dir
         ]
         
@@ -31,6 +32,11 @@ class UdpClient:
             if os.path.exists(path):
                 return ctypes.CDLL(path)
         
+        # Fallback for tests
+        test_path = os.path.abspath("../build_tests/libsniffer_client.so")
+        if os.path.exists(test_path):
+            return ctypes.CDLL(test_path)
+            
         raise FileNotFoundError("libsniffer_client.so not found")
 
     def _setup_argtypes(self):
@@ -49,7 +55,14 @@ class UdpClient:
 
         self.lib.client_set_filters.argtypes = [ctypes.c_void_p, ctypes.POINTER(CanFilterRule), ctypes.c_size_t]
 
-        self.lib.client_read_message.argtypes = [ctypes.c_void_p, ctypes.POINTER(ExternalCanfdMessage), ctypes.c_int]
+        # Updated API
+        self.lib.client_read_message.argtypes = [
+            ctypes.c_void_p, 
+            ctypes.POINTER(ctypes.c_uint32), # command
+            ctypes.POINTER(ctypes.c_uint8),  # data
+            ctypes.POINTER(ctypes.c_uint32), # len
+            ctypes.c_int                     # timeout
+        ]
         self.lib.client_read_message.restype = ctypes.c_int
 
     def start(self):
@@ -80,7 +93,37 @@ class UdpClient:
         self.lib.client_set_filters(self.handle, rules_arr, len(rules))
 
     def read_message(self, timeout_ms=100):
-        msg = ExternalCanfdMessage()
-        if self.lib.client_read_message(self.handle, ctypes.byref(msg), timeout_ms) > 0:
+        command = ctypes.c_uint32()
+        length = ctypes.c_uint32()
+        data = (ctypes.c_uint8 * 64)() # Max buffer
+        
+        if self.lib.client_read_message(self.handle, ctypes.byref(command), data, ctypes.byref(length), timeout_ms) > 0:
+            # Return a dict or object with command and data
+            # For compatibility with existing code, we might want to return an object with similar fields
+            # But existing code expects ExternalCanfdMessage.
+            # Let's return a simple object.
+            
+            class Message:
+                pass
+            
+            msg = Message()
+            msg.command = command.value
+            msg.data = bytes(data[:length.value])
+            
+            # If it's a CAN frame, parse it for convenience
+            if length.value >= 16: # sizeof(can_frame)
+                # Parse can_frame manually
+                # struct can_frame { canid_t can_id; uint8_t can_dlc; uint8_t __pad; uint8_t __res0; uint8_t __res1; uint8_t data[8]; };
+                # canid_t is uint32
+                
+                # Note: This assumes the payload IS a can_frame.
+                # If command is CMD_CANBUS_DATA, it might be V1 payload?
+                # Sniffer sends raw can_frame in V1 payload.
+                
+                msg.can_id = struct.unpack("I", msg.data[0:4])[0]
+                msg.dlc = msg.data[4]
+                msg.frame_data = msg.data[8:8+msg.dlc]
+            
             return msg
+
         return None

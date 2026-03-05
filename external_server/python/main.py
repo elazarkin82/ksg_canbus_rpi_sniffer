@@ -10,6 +10,10 @@ from logic.profile_manager import ProfileManager
 from gui.settings_dialog import SettingsDialog
 from gui.reverse_engineering import ReverseEngineeringPanel
 
+# Command IDs (Must match C++ header)
+CMD_CAN_MSG_FROM_SYSTEM = 0x2001
+CMD_CAN_MSG_FROM_COMPUTER = 0x2002
+
 class MainApp:
     def __init__(self, root):
         self.root = root
@@ -108,15 +112,18 @@ class MainApp:
         while self.running and self.client:
             msg = self.client.read_message()
             if msg:
-                can_id = msg.frame.can_id
-                length = msg.frame.len
-                data = msg.frame.data[:length] # bytes
-                magic = msg.magic_key.decode('utf-8', errors='ignore')
+                # msg is a simple object with command, data, can_id, dlc, frame_data
                 
-                direction = "SYS->ECU" if magic == "canS" else "ECU->SYS"
+                direction = "Unknown"
+                if msg.command == CMD_CAN_MSG_FROM_SYSTEM:
+                    direction = "SYS->ECU"
+                elif msg.command == CMD_CAN_MSG_FROM_COMPUTER:
+                    direction = "ECU->SYS"
                 
                 # Update UI via Panel
-                self.rev_eng_panel.on_message(time.time(), direction, can_id, data)
+                # msg.frame_data is bytes
+                if hasattr(msg, 'can_id'):
+                    self.rev_eng_panel.on_message(time.time(), direction, msg.can_id, msg.frame_data)
 
 if __name__ == "__main__":
     root = tk.Tk()

@@ -11,7 +11,14 @@
 
 using namespace communication;
 
-class SnifferClient : public base::ICommunicationListener
+// Internal structure for queue
+struct QueuedMessage {
+    uint32_t command;
+    uint32_t len;
+    uint8_t data[64]; // Max CAN FD payload
+};
+
+class SnifferClient : public base::ICommunicationListener, public communication::ICommandListener
 {
 public:
     SnifferClient(const char* ip, uint16_t remote_port, uint16_t local_port, uint32_t keep_alive_interval_ms)
@@ -21,6 +28,7 @@ public:
           m_lastSentTime(0)
     {
         m_udp = new UdpCanbusCommunication(*this, ip, remote_port, local_port);
+        m_udp->setCommandListener(this);
     }
 
     ~SnifferClient()
@@ -50,8 +58,6 @@ public:
         m_running = false;
 
         // Send reset command (optional, but good practice)
-        // sendRawCommand(CMD_SET_FILTERS, nullptr, 0); // Clear filters? Or maybe a specific RESET command?
-        // For now, just stop logging
         bool enable = false;
         sendRawCommand(CMD_EXTERNAL_SERVICE_LOGGING_OFF, (const uint8_t*)&enable, 0);
 
@@ -84,7 +90,7 @@ public:
         updateLastSentTime();
     }
 
-    int readMessage(ExternalCanfdMessage* out_msg, int timeout_ms)
+    int readMessage(uint32_t* command, uint8_t* data, uint32_t* len, int timeout_ms)
     {
         std::unique_lock<std::mutex> lock(m_queueMutex);
         if (m_queue.empty())
@@ -95,35 +101,30 @@ public:
             }
         }
 
-        if (m_queue.empty()) return 0; // Should not happen unless spurious wakeup or stop
+        if (m_queue.empty()) return 0;
 
-        *out_msg = m_queue.front();
+        QueuedMessage msg = m_queue.front();
         m_queue.pop();
+
+        if (command) *command = msg.command;
+        if (len) *len = msg.len;
+        if (data && msg.len > 0) memcpy(data, msg.data, msg.len);
+
         return 1;
     }
 
-    // --- ICommunicationListener ---
+    // --- ICommunicationListener (Data / CANF) ---
     virtual void onDataReceived(const uint8_t* data, size_t length) override
     {
-        // We expect ExternalCanfdMessage here (from UdpCanbusCommunication callback for CANFD protocol)
-        // Wait, UdpCanbusCommunication parses V1 and CANFD.
-        // If it's V1 CMD_CANBUS_DATA, it calls onDataReceived with payload.
-        // If it's CANFD, it calls onDataReceived with struct canfd_frame.
-
-        // But wait, UdpCanbusCommunication::processPacket calls m_targetListener.onDataReceived.
-        // If it's V1, it passes msg->data.
-        // If it's CANFD, it passes &msg->frame.
-
-        // We need to wrap it back into ExternalCanfdMessage or similar structure for the queue.
-        // Let's assume we only care about CAN frames for now.
-
+        // Handle "canf" messages (e.g. from emulators or legacy sniffer)
         if (length == sizeof(struct canfd_frame))
         {
-            ExternalCanfdMessage msg;
-            memset(&msg, 0, sizeof(msg));
-            // Magic key doesn't matter for internal queue, but let's set it
-            strncpy(msg.magic_key, "canf", 4);
-            memcpy(&msg.frame, data, length);
+            // We treat this as generic CAN data, command could be 0 or a special one
+            // Let's use CMD_CANBUS_DATA for generic/unknown source
+            QueuedMessage msg;
+            msg.command = CMD_CANBUS_DATA;
+            msg.len = length;
+            if (length <= sizeof(msg.data)) memcpy(msg.data, data, length);
 
             std::lock_guard<std::mutex> lock(m_queueMutex);
             m_queue.push(msg);
@@ -133,8 +134,34 @@ public:
 
     virtual void onError(int32_t errorCode) override
     {
-        // Log error
         std::cerr << "Client Error: " << errorCode << std::endl;
+    }
+
+    // --- ICommandListener (V1 Commands) ---
+    virtual void onCommandReceived(uint32_t command, const uint8_t* data, size_t length) override
+    {
+        if (command == CMD_CAN_MSG_FROM_SYSTEM || command == CMD_CAN_MSG_FROM_COMPUTER)
+        {
+            QueuedMessage msg;
+            msg.command = command;
+
+            // Payload is raw can_frame (16 bytes) or canfd_frame (72 bytes)
+            // We copy it as is
+            msg.len = length;
+            if (length <= sizeof(msg.data))
+            {
+                memcpy(msg.data, data, length);
+            }
+            else
+            {
+                msg.len = sizeof(msg.data);
+                memcpy(msg.data, data, sizeof(msg.data));
+            }
+
+            std::lock_guard<std::mutex> lock(m_queueMutex);
+            m_queue.push(msg);
+            m_queueCond.notify_one();
+        }
     }
 
 private:
@@ -178,7 +205,7 @@ private:
     std::thread m_keepAliveThread;
     std::atomic<uint64_t> m_lastSentTime;
 
-    std::queue<ExternalCanfdMessage> m_queue;
+    std::queue<QueuedMessage> m_queue;
     std::mutex m_queueMutex;
     std::condition_variable m_queueCond;
 };
@@ -222,13 +249,6 @@ void client_send_injection(void* handle, uint8_t target, uint32_t can_id, const 
     if (!handle) return;
     uint32_t cmd = (target == 1) ? CMD_CANBUS_TO_SYSTEM : CMD_CANBUS_TO_CAR;
 
-    // We need to send a can_frame struct, not just raw data?
-    // The Sniffer expects ExternalMessageV1 payload to be... what?
-    // In Sniffer::onCommandReceived:
-    // m_carSystemCan->send(data, length);
-    // ObdCanbusCommunication::send writes raw bytes to socket.
-    // So we must send a struct can_frame.
-
     struct can_frame frame;
     memset(&frame, 0, sizeof(frame));
     frame.can_id = can_id;
@@ -251,10 +271,11 @@ void client_send_raw_command(void* handle, uint32_t command_id, const uint8_t* p
     ((SnifferClient*)handle)->sendRawCommand(command_id, payload, len);
 }
 
-int client_read_message(void* handle, ExternalCanfdMessage* out_msg, int timeout_ms)
+// Updated API: Returns command ID and raw data
+int client_read_message(void* handle, uint32_t* command, uint8_t* data, uint32_t* len, int timeout_ms)
 {
     if (!handle) return -1;
-    return ((SnifferClient*)handle)->readMessage(out_msg, timeout_ms);
+    return ((SnifferClient*)handle)->readMessage(command, data, len, timeout_ms);
 }
 
 CanFilterRule client_create_rule(uint32_t id, uint8_t action, uint8_t target,

@@ -61,17 +61,11 @@ void TcpCanbusCommunication::processBuffer(const uint8_t* data, size_t length)
                 {
                     if (msg->command == CMD_CANBUS_DATA)
                     {
-                        // Forward CAN data to the main listener
                         m_targetListener.onDataReceived(msg->data, msg->data_size);
                     }
                     else if (m_commandListener)
                     {
-                        // Forward other commands to the command listener
                         m_commandListener->onCommandReceived(msg->command, msg->data, msg->data_size);
-                    }
-                    else
-                    {
-                        // TODO: Handle unhandled commands internally or log
                     }
                 }
                 else
@@ -94,10 +88,8 @@ void TcpCanbusCommunication::processBuffer(const uint8_t* data, size_t length)
     {
         if (length >= sizeof(ExternalCanfdMessage))
         {
-            const ExternalCanfdMessage* msg = (const ExternalCanfdMessage*)data;
-
-            // Forward raw CAN FD frame to the main listener
-            m_targetListener.onDataReceived((const uint8_t*)&msg->frame, sizeof(struct canfd_frame));
+            // Pass the FULL ExternalCanfdMessage structure
+            m_targetListener.onDataReceived(data, sizeof(ExternalCanfdMessage));
         }
         else
         {

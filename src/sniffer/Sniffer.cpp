@@ -305,27 +305,29 @@ void Sniffer::handleCanData(Source source, const uint8_t* data, size_t length)
 
     if (m_externalServiceLogging)
     {
-        communication::ExternalCanfdMessage msg;
-
+        // Use ExternalMessageV1 with direction command
+        communication::ExternalMessageV1 msg;
         memset(&msg, 0, sizeof(msg));
+        strncpy(msg.magic_key, "v1.00", 8);
+
         if (source == Sniffer::SOURCE_CAR_SYSTEM)
         {
-            memcpy(msg.magic_key, "canS", 4);
+            // From System -> To Car (Computer)
+            msg.command = communication::CMD_CAN_MSG_FROM_SYSTEM;
         }
         else if (source == Sniffer::SOURCE_CAR_COMPUTER)
         {
-            memcpy(msg.magic_key, "canC", 4);
+            // From Computer -> To System
+            msg.command = communication::CMD_CAN_MSG_FROM_COMPUTER;
         }
 
-        // Log the MODIFIED frame if it was forwarded, or the ORIGINAL?
-        // Usually we want to log what was actually sent.
-        // If dropped, we might still want to log it (maybe with a flag?).
-        // For now, let's log what would be sent (the modified buffer).
+        // Payload is the raw CAN frame
+        copyLen = (length < sizeof(msg.data)) ? length : sizeof(msg.data);
+        msg.data_size = copyLen;
+        memcpy(msg.data, buffer, copyLen);
 
-        copyLen = (length < sizeof(msg.frame)) ? length : sizeof(msg.frame);
-        memcpy(&msg.frame, buffer, copyLen);
-
-        m_externalService->send((const uint8_t*)&msg, sizeof(msg));
+        size_t sendLen = communication::calculateExternalMessageV1Size(copyLen);
+        m_externalService->send((const uint8_t*)&msg, sendLen);
     }
 }
 
