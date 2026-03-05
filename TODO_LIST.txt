@@ -1,9 +1,9 @@
 # Project TODO List
 
 ## Protocol & Communication
-- [ ] **Configuration Streaming:** Add `CMD_SET_PARAMS` to allow sending global configuration (e.g., interface names, timeouts) from External Server to Sniffer.
 - [ ] **Status Reporting:** Add `CMD_STATUS_REPORT` for the Sniffer to report its health, load, and active mode to the External Server.
 - [ ] **Session Recovery:** Implement logic in SDK to re-send filters/config if the Sniffer restarts.
+- [ ] **Safe Parameter Update:** Implement "Try & Confirm" mechanism for RPi configuration updates to prevent lockout (currently basic "Fire and Forget").
 
 ## Sniffer Core
 - [ ] **Complex Filters:** Extend `CanFilterRule` to support multi-byte conditions or logical AND/OR.
@@ -11,20 +11,7 @@
 - [ ] **Performance Metrics:** Measure and log processing latency per frame.
 
 ## Application Logic (MainService)
-- [ ] **Create MainService Class:** Encapsulate configuration and lifecycle logic in a dedicated class, separating it from the raw `main()` entry point.
-- [ ] **Properties File Manager:** Implement logic to load/save `sniffer.prop`.
-    - Format: `KEY=VALUE` (e.g., `car_system_can_name=vcan0`).
-    - Create default file if missing.
-- [ ] **Dynamic Reconfiguration:** Implement a mechanism in `MainService` to restart the `Sniffer` instance upon request.
-- [ ] **System Callback:** Implement a callback function in `MainService` to handle system commands (`CMD_SET_PARAMS`) received by the Sniffer.
-    - Parse the payload (newline-separated key-values).
-    - Update `sniffer.prop`.
-    - Trigger a restart of the Sniffer service.
 - [ ] **Crash Logging:** Implement signal handlers (SIGSEGV, etc.) in `main.cpp` to log stack traces or error details on crash.
-
-## Sniffer Core Extensions
-- [ ] **System Callback Hook:** Add `setSystemCallback` to `Sniffer` class to allow the main application to intercept system-level commands (like configuration updates).
-- [ ] **Command Forwarding:** Update `onCommandReceived` to forward `CMD_SET_PARAMS` and `CMD_RESTART` to the registered system callback.
 
 ## External Server (Python)
 - [ ] **GUI Implementation:** Complete the implementation of the GUI modules defined in `EXTERNAL_SERVER_SPEC.md` (Dashboard, Reverse Engineering, Cockpit).
