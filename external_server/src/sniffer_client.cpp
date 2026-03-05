@@ -65,6 +65,9 @@ public:
 
     void sendRawCommand(uint32_t command_id, const uint8_t* payload, size_t len)
     {
+        // Debug print
+        printf("[SDK] Sending command: 0x%X\n", command_id);
+
         ExternalMessageV1 msg;
         memset(&msg, 0, sizeof(msg));
         strncpy(msg.magic_key, "v1.00", 8);
@@ -145,6 +148,8 @@ private:
 
             if (diff >= m_keepAliveInterval)
             {
+                // Debug print
+                printf("[SDK] Sending Keep Alive...\n");
                 sendRawCommand(CMD_CANBUS_DATA, nullptr, 0);
                 std::this_thread::sleep_for(std::chrono::milliseconds(m_keepAliveInterval));
             }

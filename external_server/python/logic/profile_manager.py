@@ -5,21 +5,32 @@ class ProfileManager:
     def __init__(self, filename="profile.json"):
         self.filename = filename
         self.data = {
-            "decoders": {},
+            "decoders": {}, # Key: CAN ID (hex string), Value: List of signals
             "mappings": {}
         }
+        self.load()
 
     def load(self):
         if os.path.exists(self.filename):
-            with open(self.filename, 'r') as f:
-                self.data = json.load(f)
+            try:
+                with open(self.filename, 'r') as f:
+                    self.data = json.load(f)
+            except Exception as e:
+                print(f"Failed to load profile: {e}")
 
     def save(self):
-        with open(self.filename, 'w') as f:
-            json.dump(self.data, f, indent=4)
+        try:
+            with open(self.filename, 'w') as f:
+                json.dump(self.data, f, indent=4)
+        except Exception as e:
+            print(f"Failed to save profile: {e}")
 
-    def get_decoder(self, can_id):
-        return self.data["decoders"].get(str(can_id))
+    def get_signals(self, can_id):
+        # can_id should be int
+        hex_id = hex(can_id)
+        return self.data["decoders"].get(hex_id, [])
 
-    def set_decoder(self, can_id, config):
-        self.data["decoders"][str(can_id)] = config
+    def set_signals(self, can_id, signals):
+        hex_id = hex(can_id)
+        self.data["decoders"][hex_id] = signals
+        self.save()

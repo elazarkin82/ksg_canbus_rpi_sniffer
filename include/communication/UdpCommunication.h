@@ -2,6 +2,7 @@
 #define UDP_COMMUNICATION_H
 
 #include "base/CommunicationObj.hpp"
+#include <netinet/in.h>
 
 namespace communication
 {
@@ -12,7 +13,7 @@ public:
     /**
      * @param listener The listener for incoming events.
      * @param ip The remote IP address (for sending).
-     * @param remotePort The remote port (for sending).
+     * @param remotePort The remote port (for sending). If 0, sends to the last received address.
      * @param localPort The local port to bind to (for receiving).
      * @param bufferSize Size of the internal ring buffer (default 64KB).
      */
@@ -33,6 +34,9 @@ private:
     uint16_t m_remotePort;
     uint16_t m_localPort;
     int m_socketFd;
+
+    struct sockaddr_in m_lastSender;
+    bool m_hasLastSender;
 };
 
 } // namespace communication

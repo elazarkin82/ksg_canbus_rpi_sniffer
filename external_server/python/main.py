@@ -5,19 +5,22 @@ from tkinter import ttk
 import threading
 import time
 from backend.udp_client import UdpClient
-from logic.decoder import Decoder
 from logic.settings_manager import SettingsManager
+from logic.profile_manager import ProfileManager
 from gui.settings_dialog import SettingsDialog
+from gui.reverse_engineering import ReverseEngineeringPanel
 
 class MainApp:
     def __init__(self, root):
         self.root = root
         self.root.title("External Server - CAN Sniffer Control")
-        self.root.geometry("800x600")
+        self.root.geometry("1000x700")
         
         self.settings_manager = SettingsManager()
+        self.profile_manager = ProfileManager()
         self.client = None
         self.running = False
+        self.logging_active = False
 
         self._setup_ui()
 
@@ -48,25 +51,13 @@ class MainApp:
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        self.tab_traffic = ttk.Frame(self.notebook)
+        self.rev_eng_panel = ReverseEngineeringPanel(self.notebook, self.profile_manager)
         self.tab_rules = ttk.Frame(self.notebook)
         self.tab_cockpit = ttk.Frame(self.notebook)
         
-        self.notebook.add(self.tab_traffic, text="Traffic")
-        self.notebook.add(self.tab_rules, text="Rules")
+        self.notebook.add(self.rev_eng_panel, text="Reverse Engineering")
+        self.notebook.add(self.tab_rules, text="Rules Manager")
         self.notebook.add(self.tab_cockpit, text="Cockpit")
-        
-        self._setup_traffic_tab()
-
-    def _setup_traffic_tab(self):
-        # Treeview for messages
-        columns = ("Time", "Dir", "ID", "Len", "Data", "Decoded")
-        self.tree = ttk.Treeview(self.tab_traffic, columns=columns, show="headings")
-        for col in columns:
-            self.tree.heading(col, text=col)
-            self.tree.column(col, width=80)
-        self.tree.column("Data", width=200)
-        self.tree.pack(fill=tk.BOTH, expand=True)
 
     def open_settings(self):
         SettingsDialog(self.root, self.settings_manager)
@@ -85,7 +76,8 @@ class MainApp:
                 if self.client.start():
                     self.lbl_status.config(text="Connected", foreground="green")
                     self.btn_connect.config(text="Disconnect")
-                    self.btn_log.config(state=tk.NORMAL)
+                    self.btn_log.config(state=tk.NORMAL, text="Start Logging")
+                    self.logging_active = False
                     self.running = True
                     threading.Thread(target=self.rx_loop, daemon=True).start()
                 else:
@@ -95,16 +87,22 @@ class MainApp:
                 self.lbl_status.config(text=f"Error: {e}", foreground="red")
         else:
             self.running = False
+            self.logging_active = False
             self.client.close()
             self.client = None
             self.lbl_status.config(text="Disconnected", foreground="red")
             self.btn_connect.config(text="Connect")
-            self.btn_log.config(state=tk.DISABLED)
+            self.btn_log.config(state=tk.DISABLED, text="Start Logging")
 
     def toggle_logging(self):
         if self.client:
-            # Toggle logic (need state tracking)
-            self.client.set_logging(True)
+            self.logging_active = not self.logging_active
+            self.client.set_logging(self.logging_active)
+            
+            if self.logging_active:
+                self.btn_log.config(text="Stop Logging")
+            else:
+                self.btn_log.config(text="Start Logging")
 
     def rx_loop(self):
         while self.running and self.client:
@@ -112,12 +110,13 @@ class MainApp:
             if msg:
                 can_id = msg.frame.can_id
                 length = msg.frame.len
-                data = list(msg.frame.data[:length])
+                data = msg.frame.data[:length] # bytes
                 magic = msg.magic_key.decode('utf-8', errors='ignore')
                 
-                # Update UI (thread safe way needed, but for demo direct call)
-                # In real app use queue or after()
-                self.tree.insert("", 0, values=(time.time(), magic, hex(can_id), length, str(data), ""))
+                direction = "SYS->ECU" if magic == "canS" else "ECU->SYS"
+                
+                # Update UI via Panel
+                self.rev_eng_panel.on_message(time.time(), direction, can_id, data)
 
 if __name__ == "__main__":
     root = tk.Tk()

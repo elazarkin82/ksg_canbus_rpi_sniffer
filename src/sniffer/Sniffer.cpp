@@ -333,6 +333,9 @@ void Sniffer::onCommandReceived(uint32_t command, const uint8_t* data, size_t le
 {
     if (!m_running) return;
 
+    // Debug print
+    printf("[Sniffer] Received command: 0x%X\n", command);
+
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_lastExternalMsgTime = std::chrono::steady_clock::now();
