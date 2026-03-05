@@ -85,11 +85,10 @@ public:
 
         ExternalMessageV1 msg;
         memset(&msg, 0, sizeof(msg));
-        snprintf(msg.magic_key, 8, "%s", magic); // Updated to 8 bytes
-        fprintf(stderr, "msg.magic_key = %s\n", msg.magic_key);
+        snprintf(msg.magic_key, 8, "%s", magic);
         msg.command = cmd;
         msg.data_size = len;
-        if (len > 0 && len <= sizeof(msg.data)) { // Updated to 64KB
+        if (len > 0 && len <= sizeof(msg.data)) {
             memcpy(msg.data, data, len);
         }
 
@@ -195,9 +194,9 @@ bool testCanfd(MockServer& server, TcpCanbusCommunication& client, MockCanListen
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // Listener receives raw frame struct (72 bytes)
+    // Listener receives FULL ExternalCanfdMessage (76 bytes)
     return (canListener.m_receivedCount == 1 &&
-            canListener.m_lastLength == sizeof(struct canfd_frame));
+            canListener.m_lastLength == sizeof(ExternalCanfdMessage));
 }
 
 bool testBadMagic(MockServer& server, TcpCanbusCommunication& client, MockCanListener& canListener) {
@@ -210,19 +209,6 @@ bool testBadMagic(MockServer& server, TcpCanbusCommunication& client, MockCanLis
 
     // Should be dropped
     return (canListener.m_receivedCount == 0);
-}
-
-bool testBadSize(MockServer& server, TcpCanbusCommunication& client, MockCanListener& canListener) {
-    canListener.reset();
-    // Send size > 65536 (simulated by passing large len to sendV1Message, though it caps at 65536)
-    // To test bad size, we need to manually construct a bad message or modify sendV1Message to allow bad size.
-    // For now, let's skip or assume sendV1Message handles it correctly.
-    // Actually, sendV1Message caps at 65536, so we can't easily test "too big" unless we bypass it.
-    // But the protocol struct is fixed size, so "too big" means data_size > 65536 which is impossible for uint32_t? No, it is possible.
-    // But the buffer is fixed.
-
-    // Let's just return true for now as the struct size changed.
-    return true;
 }
 
 int main() {
@@ -248,7 +234,6 @@ int main() {
     printResult("V1 Command Routing", testV1Command(server, client, cmdListener));
     printResult("CANFD Protocol", testCanfd(server, client, canListener));
     printResult("Bad Magic Key", testBadMagic(server, client, canListener));
-    // printResult("Bad Data Size", testBadSize(server, client, canListener)); // Skipped
 
     client.stop();
     server.stop();

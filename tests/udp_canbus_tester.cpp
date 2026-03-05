@@ -67,10 +67,10 @@ public:
     void sendV1(const char* magic, uint32_t cmd, const uint8_t* data, uint32_t len) {
         ExternalMessageV1 msg;
         memset(&msg, 0, sizeof(msg));
-        strncpy(msg.magic_key, magic, 8); // Updated to 8 bytes
+        strncpy(msg.magic_key, magic, 8);
         msg.command = cmd;
         msg.data_size = len;
-        if (len > 0 && len <= 65536) memcpy(msg.data, data, len); // Updated to 64KB
+        if (len > 0 && len <= 65536) memcpy(msg.data, data, len);
         sendRaw(&msg, sizeof(msg));
     }
 
@@ -137,7 +137,8 @@ bool testCanfd(MockUdpSender& sender, MockCanListener& listener) {
     sender.sendCanfd("canf", frame);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    return (listener.m_receivedCount == 1 && listener.m_lastLength == sizeof(struct canfd_frame));
+    // Listener receives FULL ExternalCanfdMessage (76 bytes)
+    return (listener.m_receivedCount == 1 && listener.m_lastLength == sizeof(ExternalCanfdMessage));
 }
 
 bool testBadMagic(MockUdpSender& sender, MockCanListener& listener) {

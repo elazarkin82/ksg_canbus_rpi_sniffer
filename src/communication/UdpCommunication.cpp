@@ -44,6 +44,7 @@ int32_t UdpCommunication::open()
     m_socketFd = socket(AF_INET, SOCK_DGRAM, 0);
     if (m_socketFd < 0)
     {
+        fprintf(stderr, "[UdpCommunication] socket() failed: %s\n", strerror(errno));
         return -1;
     }
 
@@ -55,6 +56,7 @@ int32_t UdpCommunication::open()
 
     if (::bind(m_socketFd, (struct sockaddr*)&localAddr, sizeof(localAddr)) < 0)
     {
+        fprintf(stderr, "[UdpCommunication] bind() failed on port %d: %s\n", m_localPort, strerror(errno));
         ::close(m_socketFd);
         m_socketFd = -1;
         return -1;

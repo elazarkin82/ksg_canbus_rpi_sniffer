@@ -243,16 +243,29 @@ void Sniffer::stop()
         return;
     }
 
+    printf("[Sniffer] Stopping...\n");
     m_running = false;
 
     if (m_watchdogThread.joinable())
     {
+        printf("[Sniffer] Joining watchdog thread...\n");
         m_watchdogThread.join();
+        printf("[Sniffer] Watchdog thread joined.\n");
     }
 
-    if (m_carSystemCan) m_carSystemCan->stop();
-    if (m_carComputerCan) m_carComputerCan->stop();
-    if (m_externalService) m_externalService->stop();
+    if (m_carSystemCan) {
+        printf("[Sniffer] Stopping Car System CAN...\n");
+        m_carSystemCan->stop();
+    }
+    if (m_carComputerCan) {
+        printf("[Sniffer] Stopping Car Computer CAN...\n");
+        m_carComputerCan->stop();
+    }
+    if (m_externalService) {
+        printf("[Sniffer] Stopping External Service...\n");
+        m_externalService->stop();
+    }
+    printf("[Sniffer] Stopped.\n");
 }
 
 void Sniffer::setSystemCallback(ISystemCallback* callback)
@@ -273,6 +286,13 @@ void Sniffer::CanListener::onError(int32_t errorCode)
 
 void Sniffer::handleCanData(Source source, const uint8_t* data, size_t length)
 {
+    // Update watchdog timer for external source (Keep Alive)
+    if (source == Sniffer::SOURCE_EXTERNAL)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_lastExternalMsgTime = std::chrono::steady_clock::now();
+    }
+
     uint8_t buffer[72]; // Max CAN FD size
     struct can_frame* frame;
     bool should_forward;
