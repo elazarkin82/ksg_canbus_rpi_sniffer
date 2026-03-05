@@ -301,77 +301,79 @@ void Sniffer::handleCanData(Source source, const uint8_t* data, size_t length)
         std::lock_guard<std::mutex> lock(m_mutex);
         m_lastExternalMsgTime = std::chrono::steady_clock::now();
     }
-
-    uint8_t buffer[72]; // Max CAN FD size
-    struct can_frame* frame;
-    bool should_forward;
-    size_t copyLen;
-
-    if (!m_running) return;
-
-    // Copy data to local buffer for modification
-    copyLen = (length < sizeof(buffer)) ? length : sizeof(buffer);
-    memcpy(buffer, data, copyLen);
-
-    // The data is a raw CAN frame. We need to cast it to access ID and data.
-    // Assuming Standard CAN frame for now as ObdCanbusCommunication uses CAN_RAW
-    frame = (struct can_frame*)buffer;
-
-    // Process with filter engine
-    should_forward = FilterEngine::process(frame->can_id, frame->data, frame->can_dlc, source);
-
-    if (should_forward)
+    else
     {
-        if (source == Sniffer::SOURCE_CAR_SYSTEM)
-        {
-            m_carComputerCan->send(buffer, copyLen);
-        }
-        else if (source == Sniffer::SOURCE_CAR_COMPUTER)
-        {
-            m_carSystemCan->send(buffer, copyLen);
-        }
-    }
+        uint8_t buffer[72]; // Max CAN FD size
+        struct can_frame* frame;
+        bool should_forward;
+        size_t copyLen;
 
-    if (m_externalServiceLogging)
-    {
-        // Use ExternalMessageV1 with direction command
-        communication::ExternalMessageV1 msg;
-        memset(&msg, 0, sizeof(msg));
-        strncpy(msg.magic_key, "v1.00", 8);
+        if (!m_running) return;
+
+        // Copy data to local buffer for modification
+        copyLen = (length < sizeof(buffer)) ? length : sizeof(buffer);
+        memcpy(buffer, data, copyLen);
+
+        // The data is a raw CAN frame. We need to cast it to access ID and data.
+        // Assuming Standard CAN frame for now as ObdCanbusCommunication uses CAN_RAW
+        frame = (struct can_frame*)buffer;
+
+        // Process with filter engine
+        should_forward = FilterEngine::process(frame->can_id, frame->data, frame->can_dlc, source);
 
         if (should_forward)
         {
             if (source == Sniffer::SOURCE_CAR_SYSTEM)
             {
-                // From System -> To Car (Computer)
-                msg.command = communication::CMD_CAN_MSG_FROM_SYSTEM;
+                m_carComputerCan->send(buffer, copyLen);
             }
             else if (source == Sniffer::SOURCE_CAR_COMPUTER)
             {
-                // From Computer -> To System
-                msg.command = communication::CMD_CAN_MSG_FROM_COMPUTER;
+                m_carSystemCan->send(buffer, copyLen);
             }
         }
-        else
+
+        if (m_externalServiceLogging)
         {
-            // Blocked message
-            if (source == Sniffer::SOURCE_CAR_SYSTEM)
+            // Use ExternalMessageV1 with direction command
+            communication::ExternalMessageV1 msg;
+            memset(&msg, 0, sizeof(msg));
+            strncpy(msg.magic_key, "v1.00", 8);
+
+            if (should_forward)
             {
-                msg.command = communication::CMD_CAN_MSG_BLOCKED_FROM_SYSTEM;
+                if (source == Sniffer::SOURCE_CAR_SYSTEM)
+                {
+                    // From System -> To Car (Computer)
+                    msg.command = communication::CMD_CAN_MSG_FROM_SYSTEM;
+                }
+                else if (source == Sniffer::SOURCE_CAR_COMPUTER)
+                {
+                    // From Computer -> To System
+                    msg.command = communication::CMD_CAN_MSG_FROM_COMPUTER;
+                }
             }
-            else if (source == Sniffer::SOURCE_CAR_COMPUTER)
+            else
             {
-                msg.command = communication::CMD_CAN_MSG_BLOCKED_FROM_COMPUTER;
+                // Blocked message
+                if (source == Sniffer::SOURCE_CAR_SYSTEM)
+                {
+                    msg.command = communication::CMD_CAN_MSG_BLOCKED_FROM_SYSTEM;
+                }
+                else if (source == Sniffer::SOURCE_CAR_COMPUTER)
+                {
+                    msg.command = communication::CMD_CAN_MSG_BLOCKED_FROM_COMPUTER;
+                }
             }
+
+            // Payload is the raw CAN frame
+            copyLen = (length < sizeof(msg.data)) ? length : sizeof(msg.data);
+            msg.data_size = copyLen;
+            memcpy(msg.data, buffer, copyLen);
+
+            size_t sendLen = communication::calculateExternalMessageV1Size(copyLen);
+            m_externalService->send((const uint8_t*)&msg, sendLen);
         }
-
-        // Payload is the raw CAN frame
-        copyLen = (length < sizeof(msg.data)) ? length : sizeof(msg.data);
-        msg.data_size = copyLen;
-        memcpy(msg.data, buffer, copyLen);
-
-        size_t sendLen = communication::calculateExternalMessageV1Size(copyLen);
-        m_externalService->send((const uint8_t*)&msg, sendLen);
     }
 }
 

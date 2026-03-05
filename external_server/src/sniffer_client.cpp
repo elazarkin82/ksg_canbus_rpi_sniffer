@@ -110,6 +110,9 @@ public:
         if (len) *len = msg.len;
         if (data && msg.len > 0) memcpy(data, msg.data, msg.len);
 
+        // Debug print
+        printf("[SDK] readMessage: Command 0x%X, Len %u\n", msg.command, msg.len);
+
         return 1;
     }
 
@@ -140,7 +143,11 @@ public:
     // --- ICommandListener (V1 Commands) ---
     virtual void onCommandReceived(uint32_t command, const uint8_t* data, size_t length) override
     {
-        if (command == CMD_CAN_MSG_FROM_SYSTEM || command == CMD_CAN_MSG_FROM_COMPUTER)
+        // Debug print
+        printf("[SDK] onCommandReceived: 0x%X\n", command);
+
+        if (command == CMD_CAN_MSG_FROM_SYSTEM || command == CMD_CAN_MSG_FROM_COMPUTER ||
+            command == CMD_CAN_MSG_BLOCKED_FROM_SYSTEM || command == CMD_CAN_MSG_BLOCKED_FROM_COMPUTER)
         {
             QueuedMessage msg;
             msg.command = command;
@@ -176,7 +183,7 @@ private:
             if (diff >= m_keepAliveInterval)
             {
                 // Debug print
-                printf("[SDK] Sending Keep Alive...\n");
+                // printf("[SDK] Sending Keep Alive...\n"); // Commented out to reduce spam
                 sendRawCommand(CMD_CANBUS_DATA, nullptr, 0);
                 std::this_thread::sleep_for(std::chrono::milliseconds(m_keepAliveInterval));
             }
