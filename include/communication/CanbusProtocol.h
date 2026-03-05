@@ -108,6 +108,8 @@ static const uint32_t CMD_SET_PARAMS = 0x1007;       // Set configuration parame
 // Log Commands (From Sniffer to External Server)
 static const uint32_t CMD_CAN_MSG_FROM_SYSTEM = 0x2001; // Log: Message originated from System
 static const uint32_t CMD_CAN_MSG_FROM_COMPUTER = 0x2002; // Log: Message originated from Computer
+static const uint32_t CMD_CAN_MSG_BLOCKED_FROM_SYSTEM = 0x2003; // Log: Blocked message from System
+static const uint32_t CMD_CAN_MSG_BLOCKED_FROM_COMPUTER = 0x2004; // Log: Blocked message from Computer
 
 // Filter Target Constants
 static const uint8_t FILTER_TARGET_BOTH = 0;

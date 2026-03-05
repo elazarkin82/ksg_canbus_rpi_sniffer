@@ -73,6 +73,9 @@ namespace FilterEngine
         memcpy(rules_raw_memory, data, length);
         rules_count = num_rules;
 
+        printf("[FilterEngine] Loaded %d rules. First rule ID: 0x%X, Action: %d\n",
+               rules_count, rules_count > 0 ? rules_ptr[0].can_id : 0, rules_count > 0 ? rules_ptr[0].action_type : -1);
+
         // 3. Sort by CAN ID
         std::sort(rules_ptr, rules_ptr + rules_count,
             [](const communication::CanFilterRule& a, const communication::CanFilterRule& b) {
@@ -101,6 +104,11 @@ namespace FilterEngine
         uint32_t masked_id;
 
         masked_id = can_id & 0x7FF; // Extract Standard ID
+
+        if (masked_id == 0x200) {
+            // Debug print for 0x200
+            // printf("[FilterEngine] Processing 0x200. Rules count: %d\n", id_counts[masked_id]);
+        }
 
         if (masked_id >= 2048 || id_counts[masked_id] == 0)
         {
@@ -142,6 +150,7 @@ namespace FilterEngine
             {
                 if (rule->action_type == 1) // DROP
                 {
+                    if (masked_id == 0x200) printf("[FilterEngine] Dropping 0x200\n");
                     return false;
                 }
                 if (rule->action_type == 2) // MODIFY
@@ -330,15 +339,30 @@ void Sniffer::handleCanData(Source source, const uint8_t* data, size_t length)
         memset(&msg, 0, sizeof(msg));
         strncpy(msg.magic_key, "v1.00", 8);
 
-        if (source == Sniffer::SOURCE_CAR_SYSTEM)
+        if (should_forward)
         {
-            // From System -> To Car (Computer)
-            msg.command = communication::CMD_CAN_MSG_FROM_SYSTEM;
+            if (source == Sniffer::SOURCE_CAR_SYSTEM)
+            {
+                // From System -> To Car (Computer)
+                msg.command = communication::CMD_CAN_MSG_FROM_SYSTEM;
+            }
+            else if (source == Sniffer::SOURCE_CAR_COMPUTER)
+            {
+                // From Computer -> To System
+                msg.command = communication::CMD_CAN_MSG_FROM_COMPUTER;
+            }
         }
-        else if (source == Sniffer::SOURCE_CAR_COMPUTER)
+        else
         {
-            // From Computer -> To System
-            msg.command = communication::CMD_CAN_MSG_FROM_COMPUTER;
+            // Blocked message
+            if (source == Sniffer::SOURCE_CAR_SYSTEM)
+            {
+                msg.command = communication::CMD_CAN_MSG_BLOCKED_FROM_SYSTEM;
+            }
+            else if (source == Sniffer::SOURCE_CAR_COMPUTER)
+            {
+                msg.command = communication::CMD_CAN_MSG_BLOCKED_FROM_COMPUTER;
+            }
         }
 
         // Payload is the raw CAN frame
