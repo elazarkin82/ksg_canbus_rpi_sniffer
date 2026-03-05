@@ -6,6 +6,8 @@ import threading
 import time
 from backend.udp_client import UdpClient
 from logic.decoder import Decoder
+from logic.settings_manager import SettingsManager
+from gui.settings_dialog import SettingsDialog
 
 class MainApp:
     def __init__(self, root):
@@ -13,12 +15,22 @@ class MainApp:
         self.root.title("External Server - CAN Sniffer Control")
         self.root.geometry("800x600")
         
+        self.settings_manager = SettingsManager()
         self.client = None
         self.running = False
 
         self._setup_ui()
 
     def _setup_ui(self):
+        # Menu Bar
+        menubar = tk.Menu(self.root)
+        file_menu = tk.Menu(menubar, tearoff=0)
+        file_menu.add_command(label="Settings", command=self.open_settings)
+        file_menu.add_separator()
+        file_menu.add_command(label="Exit", command=self.root.quit)
+        menubar.add_cascade(label="File", menu=file_menu)
+        self.root.config(menu=menubar)
+
         # Top Bar
         top_frame = ttk.Frame(self.root, padding="5")
         top_frame.pack(fill=tk.X)
@@ -56,10 +68,20 @@ class MainApp:
         self.tree.column("Data", width=200)
         self.tree.pack(fill=tk.BOTH, expand=True)
 
+    def open_settings(self):
+        SettingsDialog(self.root, self.settings_manager)
+
     def toggle_connection(self):
         if not self.client:
             try:
-                self.client = UdpClient()
+                s = self.settings_manager.settings
+                self.client = UdpClient(
+                    ip=s["sniffer_ip"],
+                    remote_port=int(s["sniffer_port"]),
+                    local_port=int(s["local_port"]),
+                    keep_alive_ms=int(s["keep_alive_ms"])
+                )
+                
                 if self.client.start():
                     self.lbl_status.config(text="Connected", foreground="green")
                     self.btn_connect.config(text="Disconnect")
@@ -70,6 +92,7 @@ class MainApp:
                     self.lbl_status.config(text="Failed to start", foreground="red")
             except Exception as e:
                 print(f"Error: {e}")
+                self.lbl_status.config(text=f"Error: {e}", foreground="red")
         else:
             self.running = False
             self.client.close()
