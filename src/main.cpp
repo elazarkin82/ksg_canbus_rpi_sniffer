@@ -8,7 +8,9 @@ core::MainService* g_service = nullptr;
 
 void signal_handler(int sig)
 {
+#ifdef DEBUG
     printf("\nReceived signal %d, stopping...\n", sig);
+#endif
     if (g_service)
     {
         g_service->stop();
@@ -23,7 +25,9 @@ int main(int argc, char* argv[])
         configPath = argv[1];
     }
 
+#ifdef DEBUG
     printf("Starting RpiCanbusSniffer with config: %s\n", configPath);
+#endif
 
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
@@ -36,6 +40,8 @@ int main(int argc, char* argv[])
     delete g_service;
     g_service = nullptr;
 
+#ifdef DEBUG
     printf("Exiting...\n");
+#endif
     return 0;
 }

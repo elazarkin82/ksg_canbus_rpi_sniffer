@@ -62,7 +62,9 @@ int MainService::run()
 
         if (m_restartRequested)
         {
+#ifdef DEBUG
             printf("[MainService] Restart requested. Reloading configuration...\n");
+#endif
             destroySniffer();
             m_restartRequested = false;
             // Params are updated via onSystemCommand, but we might want to reload from file to be sure?
@@ -90,7 +92,9 @@ void MainService::onSystemCommand(uint32_t cmd, const uint8_t* data, size_t len)
             memcpy(buffer, data, len);
             buffer[len] = '\0';
 
+#ifdef DEBUG
             printf("[MainService] Received new parameters:\n%s\n", buffer);
+#endif
             m_params->update(buffer);
 
             delete[] buffer;
@@ -105,7 +109,9 @@ void MainService::createSniffer()
 {
     if (m_sniffer) return;
 
+#ifdef DEBUG
     printf("[MainService] Starting Sniffer...\n");
+#endif
 
     sniffer::SnifferParams params;
 
@@ -134,7 +140,9 @@ void MainService::destroySniffer()
 {
     if (m_sniffer)
     {
+#ifdef DEBUG
         printf("[MainService] Stopping Sniffer...\n");
+#endif
         m_sniffer->stop();
         delete m_sniffer;
         m_sniffer = nullptr;

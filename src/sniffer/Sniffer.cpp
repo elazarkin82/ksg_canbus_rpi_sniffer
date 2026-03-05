@@ -73,8 +73,10 @@ namespace FilterEngine
         memcpy(rules_raw_memory, data, length);
         rules_count = num_rules;
 
+#ifdef DEBUG
         printf("[FilterEngine] Loaded %d rules. First rule ID: 0x%X, Action: %d\n",
                rules_count, rules_count > 0 ? rules_ptr[0].can_id : 0, rules_count > 0 ? rules_ptr[0].action_type : -1);
+#endif
 
         // 3. Sort by CAN ID
         std::sort(rules_ptr, rules_ptr + rules_count,
@@ -150,7 +152,9 @@ namespace FilterEngine
             {
                 if (rule->action_type == 1) // DROP
                 {
+#ifdef DEBUG
                     if (masked_id == 0x200) printf("[FilterEngine] Dropping 0x200\n");
+#endif
                     return false;
                 }
                 if (rule->action_type == 2) // MODIFY
@@ -252,29 +256,43 @@ void Sniffer::stop()
         return;
     }
 
+#ifdef DEBUG
     printf("[Sniffer] Stopping...\n");
+#endif
     m_running = false;
 
     if (m_watchdogThread.joinable())
     {
+#ifdef DEBUG
         printf("[Sniffer] Joining watchdog thread...\n");
+#endif
         m_watchdogThread.join();
+#ifdef DEBUG
         printf("[Sniffer] Watchdog thread joined.\n");
+#endif
     }
 
     if (m_carSystemCan) {
+#ifdef DEBUG
         printf("[Sniffer] Stopping Car System CAN...\n");
+#endif
         m_carSystemCan->stop();
     }
     if (m_carComputerCan) {
+#ifdef DEBUG
         printf("[Sniffer] Stopping Car Computer CAN...\n");
+#endif
         m_carComputerCan->stop();
     }
     if (m_externalService) {
+#ifdef DEBUG
         printf("[Sniffer] Stopping External Service...\n");
+#endif
         m_externalService->stop();
     }
+#ifdef DEBUG
     printf("[Sniffer] Stopped.\n");
+#endif
 }
 
 void Sniffer::setSystemCallback(ISystemCallback* callback)
@@ -382,7 +400,9 @@ void Sniffer::onCommandReceived(uint32_t command, const uint8_t* data, size_t le
     if (!m_running) return;
 
     // Debug print
+#ifdef DEBUG
     printf("[Sniffer] Received command: 0x%X\n", command);
+#endif
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -392,7 +412,9 @@ void Sniffer::onCommandReceived(uint32_t command, const uint8_t* data, size_t le
     if (command == communication::CMD_SET_FILTERS)
     {
         FilterEngine::loadRules(data, length);
+#ifdef DEBUG
         printf("Filter rules updated\n");
+#endif
     }
     else if (command == communication::CMD_CANBUS_TO_SYSTEM)
     {
@@ -409,12 +431,16 @@ void Sniffer::onCommandReceived(uint32_t command, const uint8_t* data, size_t le
     else if (command == communication::CMD_EXTERNAL_SERVICE_LOGGING_ON)
     {
         m_externalServiceLogging = true;
+#ifdef DEBUG
         printf("External Service Logging ON\n");
+#endif
     }
     else if (command == communication::CMD_EXTERNAL_SERVICE_LOGGING_OFF)
     {
         m_externalServiceLogging = false;
+#ifdef DEBUG
         printf("External Service Logging OFF\n");
+#endif
     }
     else if (command == communication::CMD_SET_PARAMS)
     {
@@ -460,7 +486,9 @@ void Sniffer::resetToDefault()
     if (m_externalServiceLogging)
     {
         m_externalServiceLogging = false;
+#ifdef DEBUG
         printf("Timeout: Resetting Logging to OFF\n");
+#endif
     }
 }
 

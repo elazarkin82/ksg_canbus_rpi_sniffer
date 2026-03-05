@@ -51,7 +51,7 @@ def check_vcan():
     except subprocess.CalledProcessError:
         return False
 
-def create_release():
+def create_release(debug_mode=False):
     print("========================================")
     print("           Creating Release             ")
     print("========================================")
@@ -86,8 +86,12 @@ def create_release():
         if not os.path.exists(build_rpi_dir):
             os.makedirs(build_rpi_dir)
         
+        cmake_cmd = f"cmake -DCMAKE_TOOLCHAIN_FILE={toolchain_file} {project_root}"
+        if debug_mode:
+            cmake_cmd += " -DCMAKE_BUILD_TYPE=Debug -DDEBUG=1"
+
         # Use project_root instead of ..
-        if run_command(f"cmake -DCMAKE_TOOLCHAIN_FILE={toolchain_file} {project_root}", cwd=build_rpi_dir) == 0:
+        if run_command(cmake_cmd, cwd=build_rpi_dir) == 0:
             if run_command("make sniffer_service", cwd=build_rpi_dir) == 0:
                 shutil.copy(os.path.join(build_rpi_dir, "sniffer_service"), rpi_dir)
                 print(f"Copied sniffer_service (RPi) to {rpi_dir}")
@@ -124,6 +128,11 @@ def main():
     print("       RpiCanbusSniffer Test Runner     ")
     print("========================================")
 
+    debug_mode = False
+    if len(sys.argv) > 1 and sys.argv[1] == "debug":
+        debug_mode = True
+        print_colored("DEBUG MODE ENABLED", GREEN)
+
     # 0. Check vcan0/1 (Prerequisite for emulator test)
     vcan_ready = check_vcan()
     if not vcan_ready:
@@ -146,7 +155,11 @@ def main():
 
     # 3. Configure (CMake)
     print("Configuring with CMake...")
-    if run_command("cmake ..") != 0:
+    cmake_cmd = "cmake .."
+    if debug_mode:
+        cmake_cmd += " -DCMAKE_BUILD_TYPE=Debug -DDEBUG=1"
+    
+    if run_command(cmake_cmd) != 0:
         print_colored("CMake configuration failed!", RED)
         sys.exit(1)
 
@@ -216,7 +229,7 @@ def main():
 
     if failed_tests == 0:
         print_colored("ALL TESTS PASSED!", GREEN)
-        create_release() # Create release if tests passed
+        create_release(debug_mode) # Create release if tests passed
         sys.exit(0)
     else:
         print_colored("SOME TESTS FAILED:", RED)
