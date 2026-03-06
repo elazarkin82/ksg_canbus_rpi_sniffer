@@ -32,10 +32,57 @@ void UdpCanbusCommunication::onError(int32_t errorCode)
     m_targetListener.onError(errorCode);
 }
 
+int32_t UdpCanbusCommunication::write(const uint8_t* data, size_t length)
+{
+#ifdef DEBUG_MSG
+    char ip[64] = {0};
+    uint16_t port = getRemotePort();
+    const char* remoteIp = getRemoteIp();
+
+    if (remoteIp && remoteIp[0] != '\0')
+    {
+        strncpy(ip, remoteIp, sizeof(ip)-1);
+    }
+    else
+    {
+        // Dynamic mode, get last sender
+        getLastSenderInfo(ip, sizeof(ip), &port);
+    }
+
+    if (length >= 5 && strncmp((const char*)data, "v1.00", 5) == 0)
+    {
+        const ExternalMessageV1* msg = (const ExternalMessageV1*)data;
+        fprintf(stderr, "[UDP TX] To: %s:%d, Command: 0x%X\n", ip, port, msg->command);
+    }
+    else
+    {
+        fprintf(stderr, "[UDP TX] To: %s:%d, Unknown/Raw Data, Size: %zu\n", ip, port, length);
+    }
+#endif
+
+    return UdpCommunication::write(data, length);
+}
+
 void UdpCanbusCommunication::processPacket(const uint8_t* data, size_t length)
 {
 #ifdef DEBUG
     printf("[UdpCanbus] Received %zu bytes\n", length);
+#endif
+
+#ifdef DEBUG_MSG
+    char ip[64] = {0};
+    uint16_t port = 0;
+    getLastSenderInfo(ip, sizeof(ip), &port);
+
+    if (length >= 5 && strncmp((const char*)data, "v1.00", 5) == 0)
+    {
+        const ExternalMessageV1* msg = (const ExternalMessageV1*)data;
+        fprintf(stderr, "[UDP RX] From: %s:%d, Command: 0x%X\n", ip, port, msg->command);
+    }
+    else
+    {
+        fprintf(stderr, "[UDP RX] From: %s:%d, Unknown/Raw Data, Size: %zu\n", ip, port, length);
+    }
 #endif
 
     if (length < 4)

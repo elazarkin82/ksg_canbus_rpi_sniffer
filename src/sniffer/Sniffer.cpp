@@ -336,6 +336,17 @@ void Sniffer::handleCanData(Source source, const uint8_t* data, size_t length)
         // Assuming Standard CAN frame for now as ObdCanbusCommunication uses CAN_RAW
         frame = (struct can_frame*)buffer;
 
+#ifdef DEBUG
+        if (source == Sniffer::SOURCE_CAR_SYSTEM)
+        {
+            printf("[Sniffer] From SYSTEM: ID=0x%X\n", frame->can_id);
+        }
+        else if (source == Sniffer::SOURCE_CAR_COMPUTER)
+        {
+            printf("[Sniffer] From COMPUTER: ID=0x%X\n", frame->can_id);
+        }
+#endif
+
         // Process with filter engine
         should_forward = FilterEngine::process(frame->can_id, frame->data, frame->can_dlc, source);
 

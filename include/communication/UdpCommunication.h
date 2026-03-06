@@ -21,6 +21,13 @@ public:
 
     virtual ~UdpCommunication();
 
+    // Getters for debug info
+    const char* getRemoteIp() const { return m_ip; }
+    uint16_t getRemotePort() const { return m_remotePort; }
+
+    // Helper to get last sender info
+    void getLastSenderInfo(char* ipBuf, size_t ipBufLen, uint16_t* port) const;
+
 protected:
     // --- CommunicationObj Implementation ---
     virtual int32_t open();

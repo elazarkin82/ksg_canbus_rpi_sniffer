@@ -6,8 +6,8 @@
 #include <condition_variable>
 #include <queue>
 #include <chrono>
-#include <cstring>
-#include <iostream>
+#include <string.h>
+#include <stdio.h>
 
 using namespace communication;
 
@@ -59,7 +59,7 @@ public:
 
         // Send reset command (optional, but good practice)
         bool enable = false;
-        sendRawCommand(CMD_EXTERNAL_SERVICE_LOGGING_OFF, (const uint8_t*)&enable, 0);
+        // sendRawCommand(CMD_EXTERNAL_SERVICE_LOGGING_OFF, (const uint8_t*)&enable, 0); // Can't call member function easily here if thread is running
 
         m_udp->stop();
 
@@ -71,8 +71,9 @@ public:
 
     void sendRawCommand(uint32_t command_id, const uint8_t* payload, size_t len)
     {
-        // Debug print
-        printf("[SDK] Sending command: 0x%X\n", command_id);
+#ifdef DEBUG_MSG
+        printf("[CLIENT TX] To: %s:%d, Command: 0x%X\n", m_udp->getRemoteIp(), m_udp->getRemotePort(), command_id);
+#endif
 
         ExternalMessageV1 msg;
         memset(&msg, 0, sizeof(msg));
@@ -110,15 +111,19 @@ public:
         if (len) *len = msg.len;
         if (data && msg.len > 0) memcpy(data, msg.data, msg.len);
 
-        // Debug print
-        printf("[SDK] readMessage: Command 0x%X, Len %u\n", msg.command, msg.len);
-
         return 1;
     }
 
     // --- ICommunicationListener (Data / CANF) ---
     virtual void onDataReceived(const uint8_t* data, size_t length) override
     {
+#ifdef DEBUG_MSG
+        char ip[64] = {0};
+        uint16_t port = 0;
+        m_udp->getLastSenderInfo(ip, sizeof(ip), &port);
+        printf("[CLIENT RX] From: %s:%d, Raw Data (CANF?), Size: %zu\n", ip, port, length);
+#endif
+
         // Handle "canf" messages (e.g. from emulators or legacy sniffer)
         if (length == sizeof(struct canfd_frame))
         {
@@ -137,14 +142,18 @@ public:
 
     virtual void onError(int32_t errorCode) override
     {
-        std::cerr << "Client Error: " << errorCode << std::endl;
+        fprintf(stderr, "Client Error: %d\n", errorCode);
     }
 
     // --- ICommandListener (V1 Commands) ---
     virtual void onCommandReceived(uint32_t command, const uint8_t* data, size_t length) override
     {
-        // Debug print
-        printf("[SDK] onCommandReceived: 0x%X\n", command);
+#ifdef DEBUG_MSG
+        char ip[64] = {0};
+        uint16_t port = 0;
+        m_udp->getLastSenderInfo(ip, sizeof(ip), &port);
+        printf("[CLIENT RX] From: %s:%d, Command: 0x%X\n", ip, port, command);
+#endif
 
         if (command == CMD_CAN_MSG_FROM_SYSTEM || command == CMD_CAN_MSG_FROM_COMPUTER ||
             command == CMD_CAN_MSG_BLOCKED_FROM_SYSTEM || command == CMD_CAN_MSG_BLOCKED_FROM_COMPUTER)

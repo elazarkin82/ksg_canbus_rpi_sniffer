@@ -167,4 +167,24 @@ void UdpCommunication::unblock()
     }
 }
 
+void UdpCommunication::getLastSenderInfo(char* ipBuf, size_t ipBufLen, uint16_t* port) const
+{
+    if (m_hasLastSender)
+    {
+        if (ipBuf)
+        {
+            inet_ntop(AF_INET, &m_lastSender.sin_addr, ipBuf, ipBufLen);
+        }
+        if (port)
+        {
+            *port = ntohs(m_lastSender.sin_port);
+        }
+    }
+    else
+    {
+        if (ipBuf && ipBufLen > 0) ipBuf[0] = '\0';
+        if (port) *port = 0;
+    }
+}
+
 } // namespace communication

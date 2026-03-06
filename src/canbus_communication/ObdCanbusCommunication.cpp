@@ -99,6 +99,13 @@ int32_t ObdCanbusCommunication::read(uint8_t* buffer, size_t maxLen)
 
     if (bytesRead > 0)
     {
+#ifdef DEBUG_MSG
+        if (bytesRead >= sizeof(struct can_frame))
+        {
+            struct can_frame* frame = (struct can_frame*)buffer;
+            fprintf(stderr, "[CANBUS RX] Interface: %s, ID: 0x%X\n", m_interfaceName, frame->can_id);
+        }
+#endif
         return (int32_t)bytesRead;
     }
     else if (bytesRead == 0)
@@ -125,6 +132,14 @@ int32_t ObdCanbusCommunication::write(const uint8_t* data, size_t length)
     {
         return -1;
     }
+
+#ifdef DEBUG_MSG
+    if (length >= sizeof(struct can_frame))
+    {
+        const struct can_frame* frame = (const struct can_frame*)data;
+        fprintf(stderr, "[CANBUS TX] Interface: %s, ID: 0x%X\n", m_interfaceName, frame->can_id);
+    }
+#endif
 
     bytesWritten = ::write(m_socketFd, data, length);
 

@@ -28,6 +28,9 @@ protected:
     virtual void onDataReceived(const uint8_t* data, size_t length) override;
     virtual void onError(int32_t errorCode) override;
 
+    // Override write to add debug prints
+    virtual int32_t write(const uint8_t* data, size_t length) override;
+
 private:
     void processPacket(const uint8_t* data, size_t length);
 
