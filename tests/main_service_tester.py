@@ -92,6 +92,7 @@ def create_config(filename, port):
         f.write(f"car_system_can_name=vcan0\n")
         f.write(f"car_computer_can_name=vcan1\n")
         f.write(f"external_service_port={port}\n")
+        f.write(f"external_client_port=9096\n")
 
 def wait_for_message(client, can_id, timeout=2.0):
     start = time.time()
@@ -208,7 +209,8 @@ def run_test():
 
         # 6. Test Dynamic Reconfiguration
         print("Testing Dynamic Reconfiguration (Switch to Port 9099)...")
-        new_params = b"external_service_port=9099"
+        # Update both service port AND client port
+        new_params = b"external_service_port=9099\nexternal_client_port=9097"
         data_arr = (ctypes.c_uint8 * len(new_params))(*new_params)
         
         lib_client.client_send_raw_command(client, CMD_SET_PARAMS, data_arr, len(new_params))
@@ -222,6 +224,7 @@ def run_test():
         
         # 7. Verify New Port
         print("Connecting to New Port (9099)...")
+        # Client listens on 9097 now
         client_new = lib_client.client_create(b"127.0.0.1", 9099, 9097, 500)
         
         if lib_client.client_start(client_new) != 0:
