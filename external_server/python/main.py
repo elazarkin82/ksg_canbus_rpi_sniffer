@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 import threading
 import time
+import backend.udp_client # Import module to access global DEBUG_MODE
 from backend.udp_client import UdpClient
 from logic.settings_manager import SettingsManager
 from logic.profile_manager import ProfileManager
@@ -25,17 +26,25 @@ class MainApp:
         self.client = None
         self.running = False
         self.logging_active = False
+        
+        self.debug_var = tk.BooleanVar(value=False)
 
         self._setup_ui()
 
     def _setup_ui(self):
         # Menu Bar
         menubar = tk.Menu(self.root)
+        
         file_menu = tk.Menu(menubar, tearoff=0)
         file_menu.add_command(label="Settings", command=self.open_settings)
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self.root.quit)
         menubar.add_cascade(label="File", menu=file_menu)
+        
+        view_menu = tk.Menu(menubar, tearoff=0)
+        view_menu.add_checkbutton(label="Debug Mode", onvalue=True, offvalue=False, variable=self.debug_var, command=self.toggle_debug)
+        menubar.add_cascade(label="View", menu=view_menu)
+        
         self.root.config(menu=menubar)
 
         # Top Bar
@@ -65,6 +74,10 @@ class MainApp:
 
     def open_settings(self):
         SettingsDialog(self.root, self.settings_manager)
+        
+    def toggle_debug(self):
+        backend.udp_client.DEBUG_MODE = self.debug_var.get()
+        print(f"Debug Mode set to: {backend.udp_client.DEBUG_MODE}")
 
     def toggle_connection(self):
         if not self.client:

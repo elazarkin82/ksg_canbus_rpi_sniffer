@@ -4,6 +4,9 @@ import sys
 import struct # Added import
 from .protocol import *
 
+# Global debug flag
+DEBUG_MODE = False
+
 class UdpClient:
     def __init__(self, ip="127.0.0.1", remote_port=9095, local_port=9096, keep_alive_ms=500):
         self.lib = self._load_library()
@@ -101,7 +104,8 @@ class UdpClient:
         res = self.lib.client_read_message(self.handle, ctypes.byref(command), data, ctypes.byref(length), timeout_ms)
         
         if res > 0:
-            print(f"[Python] read_message: res={res}, command=0x{command.value:X}, length={length.value}")
+            if DEBUG_MODE:
+                print(f"[Python] read_message: res={res}, command=0x{command.value:X}, length={length.value}")
             
             # Return a dict or object with command and data
             # For compatibility with existing code, we might want to return an object with similar fields
@@ -129,7 +133,8 @@ class UdpClient:
                 msg.dlc = msg.data[4]
                 msg.frame_data = msg.data[8:8+msg.dlc]
             else:
-                print(f"[Python] Warning: Message length {length.value} < 16, cannot parse as can_frame")
+                if DEBUG_MODE:
+                    print(f"[Python] Warning: Message length {length.value} < 16, cannot parse as can_frame")
             
             return msg
         else:
