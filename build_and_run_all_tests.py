@@ -89,8 +89,13 @@ def create_release(debug_mode=False, debug_msg_mode=False):
         cmake_cmd = f"cmake -DCMAKE_TOOLCHAIN_FILE={toolchain_file} {project_root}"
         if debug_mode:
             cmake_cmd += " -DCMAKE_BUILD_TYPE=Debug -DDEBUG=1"
+        else:
+            cmake_cmd += " -DCMAKE_BUILD_TYPE=Release -DDEBUG=0"
+
         if debug_msg_mode:
             cmake_cmd += " -DDEBUG_MSG=1"
+        else:
+            cmake_cmd += " -DDEBUG_MSG=0"
 
         # Use project_root instead of ..
         if run_command(cmake_cmd, cwd=build_rpi_dir) == 0:
@@ -167,8 +172,13 @@ def main():
     cmake_cmd = "cmake .."
     if debug_mode:
         cmake_cmd += " -DCMAKE_BUILD_TYPE=Debug -DDEBUG=1"
+    else:
+        cmake_cmd += " -DCMAKE_BUILD_TYPE=Release -DDEBUG=0"
+
     if debug_msg_mode:
         cmake_cmd += " -DDEBUG_MSG=1"
+    else:
+        cmake_cmd += " -DDEBUG_MSG=0"
     
     if run_command(cmake_cmd) != 0:
         print_colored("CMake configuration failed!", RED)
