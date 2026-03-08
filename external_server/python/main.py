@@ -116,6 +116,9 @@ class MainApp:
             self.logging_active = not self.logging_active
             self.client.set_logging(self.logging_active)
             
+            # Update UI state
+            self.rev_eng_panel.set_logging_state(self.logging_active)
+            
             if self.logging_active:
                 self.btn_log.config(text="Stop Logging")
             else:

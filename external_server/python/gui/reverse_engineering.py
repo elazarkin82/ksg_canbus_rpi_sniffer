@@ -11,7 +11,7 @@ class ReverseEngineeringPanel(ttk.Frame):
         self.profile_manager = profile_manager
         self.recorder = Recorder()
         self.messages_map = {} # ID -> Item ID in tree
-        self.paused = False
+        self.logging_active = False # Controlled by MainApp
         
         self._setup_ui()
         # Context menu is created dynamically now
@@ -24,8 +24,7 @@ class ReverseEngineeringPanel(ttk.Frame):
         self.btn_record = ttk.Button(toolbar, text="Record", command=self.toggle_record)
         self.btn_record.pack(side=tk.LEFT)
         
-        self.btn_pause = ttk.Button(toolbar, text="Pause View", command=self.toggle_pause)
-        self.btn_pause.pack(side=tk.LEFT, padx=5)
+        # Removed Pause button
         
         ttk.Button(toolbar, text="Clear", command=self.clear_table).pack(side=tk.LEFT, padx=5)
 
@@ -57,6 +56,9 @@ class ReverseEngineeringPanel(ttk.Frame):
             self.tree.bind("<Button-2>", self.show_context_menu)
         else:
             self.tree.bind("<Button-3>", self.show_context_menu)
+
+    def set_logging_state(self, active):
+        self.logging_active = active
 
     def _create_dynamic_menu(self, data_len):
         menu = tk.Menu(self, tearoff=0)
@@ -116,8 +118,8 @@ class ReverseEngineeringPanel(ttk.Frame):
         return menu
 
     def show_context_menu(self, event):
-        if not self.paused:
-            return # Only allow editing when paused to avoid UI jumps
+        if self.logging_active:
+            return # Only allow editing when logging is stopped
 
         item_id = self.tree.identify_row(event.y)
         if item_id:
@@ -205,10 +207,6 @@ class ReverseEngineeringPanel(ttk.Frame):
             if filename:
                 self.recorder.save_to_file(filename)
 
-    def toggle_pause(self):
-        self.paused = not self.paused
-        self.btn_pause.config(text="Resume View" if self.paused else "Pause View")
-
     def clear_table(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -218,8 +216,9 @@ class ReverseEngineeringPanel(ttk.Frame):
         # Record
         self.recorder.add_message(timestamp, direction, can_id, data)
         
-        if self.paused:
-            return
+        # No need to check paused/logging_active here, as main.py controls the flow
+        # But if we want to be safe:
+        # if not self.logging_active: return
 
         hex_id = hex(can_id)
         data_str = data.hex()
