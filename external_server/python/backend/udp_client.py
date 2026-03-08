@@ -1,6 +1,7 @@
 import ctypes
 import os
 import sys
+import struct # Added import
 from .protocol import *
 
 class UdpClient:
