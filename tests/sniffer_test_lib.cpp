@@ -51,7 +51,8 @@ void flush_socket(int s) {
         tv.tv_usec = 0; // Non-blocking check
 
         if (select(s + 1, &rdfs, NULL, NULL, &tv) > 0) {
-            read(s, &frame, sizeof(frame));
+            ssize_t res = read(s, &frame, sizeof(frame));
+            (void)res; // Suppress unused result warning
         } else {
             break;
         }

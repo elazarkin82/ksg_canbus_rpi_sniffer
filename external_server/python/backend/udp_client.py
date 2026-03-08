@@ -97,7 +97,11 @@ class UdpClient:
         length = ctypes.c_uint32()
         data = (ctypes.c_uint8 * 64)() # Max buffer
         
-        if self.lib.client_read_message(self.handle, ctypes.byref(command), data, ctypes.byref(length), timeout_ms) > 0:
+        res = self.lib.client_read_message(self.handle, ctypes.byref(command), data, ctypes.byref(length), timeout_ms)
+        
+        if res > 0:
+            print(f"[Python] read_message: res={res}, command=0x{command.value:X}, length={length.value}")
+            
             # Return a dict or object with command and data
             # For compatibility with existing code, we might want to return an object with similar fields
             # But existing code expects ExternalCanfdMessage.
@@ -123,7 +127,12 @@ class UdpClient:
                 msg.can_id = struct.unpack("I", msg.data[0:4])[0]
                 msg.dlc = msg.data[4]
                 msg.frame_data = msg.data[8:8+msg.dlc]
+            else:
+                print(f"[Python] Warning: Message length {length.value} < 16, cannot parse as can_frame")
             
             return msg
+        else:
+            # print(f"[Python] read_message: res={res} (Timeout or Empty)")
+            pass
 
         return None

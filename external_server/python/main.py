@@ -120,10 +120,11 @@ class MainApp:
                 elif msg.command == CMD_CAN_MSG_FROM_COMPUTER:
                     direction = "ECU->SYS"
                 
-                # Update UI via Panel
-                # msg.frame_data is bytes
+                # Update UI via Panel - MUST be done in Main Thread
                 if hasattr(msg, 'can_id'):
-                    self.rev_eng_panel.on_message(time.time(), direction, msg.can_id, msg.frame_data)
+                    # Use root.after to schedule the update on the main thread
+                    self.root.after(0, lambda t=time.time(), d=direction, i=msg.can_id, f=msg.frame_data: 
+                                    self.rev_eng_panel.on_message(t, d, i, f))
 
 if __name__ == "__main__":
     root = tk.Tk()
