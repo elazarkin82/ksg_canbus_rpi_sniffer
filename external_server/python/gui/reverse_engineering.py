@@ -14,7 +14,7 @@ class ReverseEngineeringPanel(ttk.Frame):
         self.paused = False
         
         self._setup_ui()
-        self._create_context_menu()
+        # Context menu is created dynamically now
 
     def _setup_ui(self):
         # Toolbar
@@ -58,35 +58,62 @@ class ReverseEngineeringPanel(ttk.Frame):
         else:
             self.tree.bind("<Button-3>", self.show_context_menu)
 
-    def _create_context_menu(self):
-        self.context_menu = tk.Menu(self, tearoff=0)
-        self.selected_can_id = None
+    def _create_dynamic_menu(self, data_len):
+        menu = tk.Menu(self, tearoff=0)
         
-        # Integer Submenu
-        int_menu = tk.Menu(self.context_menu, tearoff=0)
-        int_menu.add_command(label="Uint8 (Byte 0)", command=lambda: self.apply_preset("uint8", 0, 1))
-        int_menu.add_command(label="Int8 (Byte 0)", command=lambda: self.apply_preset("int8", 0, 1))
-        int_menu.add_separator()
-        int_menu.add_command(label="Uint16 BE (Bytes 0-1)", command=lambda: self.apply_preset("uint16_be", 0, 2))
-        int_menu.add_command(label="Uint16 LE (Bytes 0-1)", command=lambda: self.apply_preset("uint16_le", 0, 2))
-        int_menu.add_command(label="Int16 BE (Bytes 0-1)", command=lambda: self.apply_preset("int16_be", 0, 2))
-        int_menu.add_command(label="Int16 LE (Bytes 0-1)", command=lambda: self.apply_preset("int16_le", 0, 2))
+        # --- OBD-II Presets ---
+        obd_menu = tk.Menu(menu, tearoff=0)
         
-        self.context_menu.add_cascade(label="Integer", menu=int_menu)
+        # Helper to add preset if length matches
+        def add_obd(name, formula, req_len):
+            if data_len >= req_len:
+                obd_menu.add_command(label=name, command=lambda: self.apply_preset("formula", 0, req_len, formula))
+
+        add_obd("Engine RPM", "(d[0]*256 + d[1])/4.0", 2)
+        add_obd("Vehicle Speed", "d[0]", 1)
+        add_obd("Coolant Temp", "d[0] - 40", 1)
+        add_obd("Throttle Position", "d[0] * 100.0 / 255.0", 1)
+        add_obd("Engine Load", "d[0] * 100.0 / 255.0", 1)
+        add_obd("Fuel Level", "d[0] * 100.0 / 255.0", 1)
+        add_obd("MAF Air Flow", "(d[0]*256 + d[1])/100.0", 2)
+        add_obd("Timing Advance", "d[0]/2.0 - 64.0", 1)
+        add_obd("Intake MAP", "d[0]", 1)
+        add_obd("Fuel Pressure", "d[0] * 3", 1)
+        add_obd("Run Time", "f'{d[0]*256+d[1]//3600:02}:{(d[0]*256+d[1]%3600)//60:02}:{d[0]*256+d[1]%60:02}'", 2) # Complex formula
+
+        menu.add_cascade(label="OBD-II Presets", menu=obd_menu)
+        menu.add_separator()
+
+        # --- Generic Types ---
         
-        # Float Submenu
-        float_menu = tk.Menu(self.context_menu, tearoff=0)
-        float_menu.add_command(label="Float (Bytes 0-3)", command=lambda: self.apply_preset("float", 0, 4))
-        self.context_menu.add_cascade(label="Float", menu=float_menu)
+        # Uint8
+        u8_menu = tk.Menu(menu, tearoff=0)
+        for i in range(data_len):
+            u8_menu.add_command(label=f"Byte {i}", command=lambda x=i: self.apply_preset("uint8", x, 1))
+        menu.add_cascade(label="Uint8", menu=u8_menu)
+
+        # Uint16 BE
+        if data_len >= 2:
+            u16_menu = tk.Menu(menu, tearoff=0)
+            for i in range(data_len - 1):
+                u16_menu.add_command(label=f"Bytes {i}-{i+1}", command=lambda x=i: self.apply_preset("uint16_be", x, 2))
+            menu.add_cascade(label="Uint16 (BE)", menu=u16_menu)
+
+        # Percent
+        pct_menu = tk.Menu(menu, tearoff=0)
+        for i in range(data_len):
+            pct_menu.add_command(label=f"Byte {i}", command=lambda x=i: self.apply_preset("percent", x, 1))
+        menu.add_cascade(label="Percent", menu=pct_menu)
+
+        menu.add_separator()
+        menu.add_command(label="ASCII String", command=lambda: self.apply_preset("ascii", 0, data_len))
         
-        # Other Types
-        self.context_menu.add_command(label="Percent (Byte 0)", command=lambda: self.apply_preset("percent", 0, 1))
-        self.context_menu.add_command(label="ASCII String", command=lambda: self.apply_preset("ascii", 0, 8))
+        menu.add_separator()
+        menu.add_command(label="Custom Formula...", command=self.ask_formula)
+        menu.add_separator()
+        menu.add_command(label="Clear Decoder", command=self.clear_decoder)
         
-        self.context_menu.add_separator()
-        self.context_menu.add_command(label="Custom Formula...", command=self.ask_formula)
-        self.context_menu.add_separator()
-        self.context_menu.add_command(label="Clear Decoder", command=self.clear_decoder)
+        return menu
 
     def show_context_menu(self, event):
         if not self.paused:
@@ -97,7 +124,15 @@ class ReverseEngineeringPanel(ttk.Frame):
             self.tree.selection_set(item_id)
             vals = self.tree.item(item_id, "values")
             self.selected_can_id = int(vals[0], 16)
-            self.context_menu.post(event.x_root, event.y_root)
+            
+            # Get data length for dynamic menu
+            data_str = vals[4]
+            try:
+                data_bytes = bytes.fromhex(data_str)
+                menu = self._create_dynamic_menu(len(data_bytes))
+                menu.post(event.x_root, event.y_root)
+            except:
+                pass
 
     def apply_preset(self, type_name, start_byte, length, formula=None):
         if self.selected_can_id is None: return
