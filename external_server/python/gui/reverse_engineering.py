@@ -132,7 +132,7 @@ class ReverseEngineeringPanel(ttk.Frame):
             try:
                 data_bytes = bytes.fromhex(data_str)
                 menu = self._create_dynamic_menu(len(data_bytes))
-                menu.post(event.x_root, event.y_root)
+                menu.tk_popup(event.x_root, event.y_root) # Changed from post to tk_popup
             except:
                 pass
 
