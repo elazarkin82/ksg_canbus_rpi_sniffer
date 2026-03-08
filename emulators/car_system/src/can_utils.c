@@ -54,6 +54,10 @@ int can_send_frame(int socket_fd, uint32_t can_id, const uint8_t* data, uint8_t 
     frame.can_dlc = len > 8 ? 8 : len;
     memcpy(frame.data, data, frame.can_dlc);
 
+#ifdef DEBUG_MSG
+    fprintf(stderr, "[EMULATOR TX] Interface FD: %d, ID: 0x%X, DLC: %d\n", socket_fd, frame.can_id, frame.can_dlc);
+#endif
+
     if (write(socket_fd, &frame, sizeof(frame)) != sizeof(frame)) {
         perror("Write");
         return -1;
@@ -97,6 +101,10 @@ int can_read_frame(int socket_fd, uint32_t* can_id, uint8_t* data, uint8_t* len)
         *can_id = frame.can_id;
         *len = frame.can_dlc;
         memcpy(data, frame.data, frame.can_dlc);
+
+#ifdef DEBUG_MSG
+        fprintf(stderr, "[EMULATOR RX] Interface FD: %d, ID: 0x%X, DLC: %d\n", socket_fd, *can_id, *len);
+#endif
 
         return 1; // Success (Data read)
     }

@@ -74,6 +74,7 @@ int32_t ObdCanbusCommunication::open()
         return -1;
     }
 
+    fprintf(stderr, "[ObdCanbusCommunication] Successfully bound to interface '%s'\n", m_interfaceName);
     return 0;
 }
 

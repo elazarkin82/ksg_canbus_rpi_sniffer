@@ -4,6 +4,21 @@ project(RpiCanbusSniffer)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_C_STANDARD 99)
 
+# --- Debug Flags ---
+message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "DEBUG flag: ${DEBUG}")
+message(STATUS "DEBUG_MSG flag: ${DEBUG_MSG}")
+
+if(DEBUG)
+    add_definitions(-DDEBUG)
+    message(STATUS "Adding -DDEBUG to compiler definitions")
+endif()
+
+if(DEBUG_MSG)
+    add_definitions(-DDEBUG_MSG)
+    message(STATUS "Adding -DDEBUG_MSG to compiler definitions")
+endif()
+
 include_directories(include)
 include_directories(emulators/car_system/include)
 include_directories(emulators/car_computer/include)

@@ -123,6 +123,11 @@ void MainService::createSniffer()
     strncpy(params.car_computer_can_name, compName ? compName : "vcan1", 16);
     params.external_service_port = (uint16_t)port;
 
+    printf("[MainService] Creating Sniffer with params:\n");
+    printf("  System CAN: %s\n", params.car_system_can_name);
+    printf("  Computer CAN: %s\n", params.car_computer_can_name);
+    printf("  External Port: %d\n", params.external_service_port);
+
     m_sniffer = new sniffer::Sniffer(params);
     m_sniffer->setSystemCallback(this);
 
