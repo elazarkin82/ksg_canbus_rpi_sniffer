@@ -188,7 +188,8 @@ Sniffer::Sniffer(const SnifferParams& params)
     m_carComputerCan = new canbus_communication::ObdCanbusCommunication(m_computerListener, params.car_computer_can_name);
 
     // Initialize External Service (UDP)
-    m_externalService = new communication::UdpCanbusCommunication(m_externalListener, "0.0.0.0", 0, params.external_service_port);
+    // Use external_client_port as the remote port (target)
+    m_externalService = new communication::UdpCanbusCommunication(m_externalListener, "0.0.0.0", params.external_client_port, params.external_service_port);
     m_externalService->setCommandListener(this);
 
     FilterEngine::init();

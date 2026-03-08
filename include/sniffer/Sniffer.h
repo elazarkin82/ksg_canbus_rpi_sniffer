@@ -19,6 +19,7 @@ struct SnifferParams
     char car_system_can_name[16];
     char car_computer_can_name[16];
     uint16_t external_service_port;
+    uint16_t external_client_port; // New parameter for target port
 };
 
 class ISystemCallback

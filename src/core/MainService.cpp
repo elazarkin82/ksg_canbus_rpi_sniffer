@@ -12,7 +12,8 @@ namespace core
 static const char* DEFAULT_PARAMS =
     "car_system_can_name=vcan0\n"
     "car_computer_can_name=vcan1\n"
-    "external_service_port=9095\n";
+    "external_service_port=9095\n"
+    "external_client_port=9096\n"; // Added default client port
 
 MainService::MainService(const char* configPath)
     : m_params(nullptr),
@@ -117,16 +118,19 @@ void MainService::createSniffer()
 
     const char* sysName = m_params->get("car_system_can_name");
     const char* compName = m_params->get("car_computer_can_name");
-    int port = m_params->getInt("external_service_port", 9095);
+    int servicePort = m_params->getInt("external_service_port", 9095);
+    int clientPort = m_params->getInt("external_client_port", 9096);
 
     strncpy(params.car_system_can_name, sysName ? sysName : "vcan0", 16);
     strncpy(params.car_computer_can_name, compName ? compName : "vcan1", 16);
-    params.external_service_port = (uint16_t)port;
+    params.external_service_port = (uint16_t)servicePort;
+    params.external_client_port = (uint16_t)clientPort;
 
     printf("[MainService] Creating Sniffer with params:\n");
     printf("  System CAN: %s\n", params.car_system_can_name);
     printf("  Computer CAN: %s\n", params.car_computer_can_name);
-    printf("  External Port: %d\n", params.external_service_port);
+    printf("  External Service Port (Listen): %d\n", params.external_service_port);
+    printf("  External Client Port (Send): %d\n", params.external_client_port);
 
     m_sniffer = new sniffer::Sniffer(params);
     m_sniffer->setSystemCallback(this);
