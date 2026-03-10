@@ -27,6 +27,9 @@ class ReverseEngineeringPanel(ttk.Frame):
         self.btn_record.pack(side=tk.LEFT)
         
         ttk.Button(toolbar, text="Clear", command=self.clear_table).pack(side=tk.LEFT, padx=5)
+        
+        # New Save Button
+        ttk.Button(toolbar, text="Save Profile", command=self.save_profile).pack(side=tk.LEFT, padx=5)
 
         # Table
         columns = ("ID", "Protocol", "PID", "Dir", "Count", "Interval", "Data", "Decoded")
@@ -63,6 +66,9 @@ class ReverseEngineeringPanel(ttk.Frame):
 
     def set_logging_state(self, active):
         self.logging_active = active
+
+    def save_profile(self):
+        self.profile_manager.save()
 
     def _create_dynamic_menu(self, can_id, data_len):
         menu = tk.Menu(self, tearoff=0)
@@ -115,27 +121,33 @@ class ReverseEngineeringPanel(ttk.Frame):
         add_obd("Run Time", "f'{d[0]*256+d[1]//3600:02}:{(d[0]*256+d[1]%3600)//60:02}:{d[0]*256+d[1]%60:02}'", 2)
 
         menu.add_cascade(label="OBD-II Presets", menu=obd_menu)
-        menu.add_separator()
-
-        # --- Generic Types ---
-        u8_menu = tk.Menu(menu, tearoff=0)
+        
+        # --- Generic Types (Grouped) ---
+        generic_menu = tk.Menu(menu, tearoff=0)
+        
+        # Uint8
+        u8_menu = tk.Menu(generic_menu, tearoff=0)
         for i in range(data_len):
             u8_menu.add_command(label=f"Byte {i}", command=lambda x=i: self.apply_preset("uint8", x, 1))
-        menu.add_cascade(label="Uint8", menu=u8_menu)
+        generic_menu.add_cascade(label="Uint8", menu=u8_menu)
 
+        # Uint16 BE
         if data_len >= 2:
-            u16_menu = tk.Menu(menu, tearoff=0)
+            u16_menu = tk.Menu(generic_menu, tearoff=0)
             for i in range(data_len - 1):
                 u16_menu.add_command(label=f"Bytes {i}-{i+1}", command=lambda x=i: self.apply_preset("uint16_be", x, 2))
-            menu.add_cascade(label="Uint16 (BE)", menu=u16_menu)
+            generic_menu.add_cascade(label="Uint16 (BE)", menu=u16_menu)
 
-        pct_menu = tk.Menu(menu, tearoff=0)
+        # Percent
+        pct_menu = tk.Menu(generic_menu, tearoff=0)
         for i in range(data_len):
             pct_menu.add_command(label=f"Byte {i}", command=lambda x=i: self.apply_preset("percent", x, 1))
-        menu.add_cascade(label="Percent", menu=pct_menu)
+        generic_menu.add_cascade(label="Percent", menu=pct_menu)
 
-        menu.add_separator()
-        menu.add_command(label="ASCII String", command=lambda: self.apply_preset("ascii", 0, data_len))
+        generic_menu.add_separator()
+        generic_menu.add_command(label="ASCII String", command=lambda: self.apply_preset("ascii", 0, data_len))
+        
+        menu.add_cascade(label="Generic Types", menu=generic_menu)
         
         menu.add_separator()
         menu.add_command(label="Custom Formula...", command=self.ask_formula)

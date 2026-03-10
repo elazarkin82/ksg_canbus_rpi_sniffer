@@ -27,6 +27,7 @@ class ProfileManager:
         try:
             with open(self.filename, 'w') as f:
                 json.dump(self.data, f, indent=4)
+            print("Profile saved successfully.") # Added feedback
         except Exception as e:
             print(f"Failed to save profile: {e}")
 
@@ -40,7 +41,7 @@ class ProfileManager:
         hex_id = hex(can_id)
         key = f"{hex_id}_{pid}" if pid is not None else hex_id
         self.data["decoders"][key] = signals
-        self.save()
+        # self.save() # Removed automatic save
 
     def get_message_config(self, can_id):
         hex_id = hex(can_id)
@@ -54,4 +55,4 @@ class ProfileManager:
     def set_message_config(self, can_id, config):
         hex_id = hex(can_id)
         self.data["message_configs"][hex_id] = config
-        self.save()
+        # self.save() # Removed automatic save
