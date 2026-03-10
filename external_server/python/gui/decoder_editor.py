@@ -2,9 +2,14 @@ import tkinter as tk
 from tkinter import ttk
 
 class DecoderEditorDialog(tk.Toplevel):
-    def __init__(self, parent, can_id, current_signals, on_save_callback):
+    def __init__(self, parent, can_id, current_signals, on_save_callback, pid=None):
         super().__init__(parent)
-        self.title(f"Edit Decoder for {hex(can_id)}")
+        
+        title_str = f"Edit Decoder for {hex(can_id)}"
+        if pid is not None:
+            title_str += f" (PID: {hex(pid)})"
+        self.title(title_str)
+        
         self.geometry("600x400")
         
         self.can_id = can_id
@@ -42,12 +47,17 @@ class DecoderEditorDialog(tk.Toplevel):
 
         ttk.Label(edit_frame, text="Type:").grid(row=1, column=0)
         self.type_var = tk.StringVar(value="uint8")
-        type_cb = ttk.Combobox(edit_frame, textvariable=self.type_var, values=["uint8", "uint16_be", "uint16_le"])
+        type_cb = ttk.Combobox(edit_frame, textvariable=self.type_var, values=["uint8", "uint16_be", "uint16_le", "percent", "ascii", "formula"])
         type_cb.grid(row=1, column=1)
 
         ttk.Label(edit_frame, text="Scale:").grid(row=1, column=2)
         self.scale_var = tk.DoubleVar(value=1.0)
         ttk.Entry(edit_frame, textvariable=self.scale_var, width=5).grid(row=1, column=3)
+        
+        ttk.Label(edit_frame, text="Offset:").grid(row=1, column=4)
+        self.offset_var = tk.DoubleVar(value=0.0)
+        ttk.Entry(edit_frame, textvariable=self.offset_var, width=5).grid(row=1, column=5)
+
 
         btn_frame = ttk.Frame(self)
         btn_frame.pack(fill=tk.X, padx=10, pady=10)
@@ -62,7 +72,7 @@ class DecoderEditorDialog(tk.Toplevel):
             self.tree.delete(item)
         
         for sig in self.signals:
-            self.tree.insert("", tk.END, values=(sig["name"], sig["start_byte"], sig["length"], sig["type"], sig["scale"]))
+            self.tree.insert("", tk.END, values=(sig.get("name","N/A"), sig.get("start_byte",0), sig.get("length",0), sig.get("type","N/A"), sig.get("scale",1.0)))
 
     def _add_signal(self):
         # Simple add (no validation for overlap yet)
@@ -71,7 +81,9 @@ class DecoderEditorDialog(tk.Toplevel):
             "start_byte": self.start_var.get(),
             "length": self.len_var.get(),
             "type": self.type_var.get(),
-            "scale": self.scale_var.get()
+            "scale": self.scale_var.get(),
+            "offset": self.offset_var.get(),
+            "formula": None # Not editing formula here for now
         }
         self.signals.append(new_sig)
         self._refresh_list()
