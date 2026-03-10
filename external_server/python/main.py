@@ -10,6 +10,7 @@ from logic.settings_manager import SettingsManager
 from logic.profile_manager import ProfileManager
 from gui.settings_dialog import SettingsDialog
 from gui.reverse_engineering import ReverseEngineeringPanel
+from gui.obd2_panel import OBD2Panel # New import
 
 # Command IDs (Must match C++ header)
 CMD_CAN_MSG_FROM_SYSTEM = 0x2001
@@ -65,10 +66,12 @@ class MainApp:
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         self.rev_eng_panel = ReverseEngineeringPanel(self.notebook, self.profile_manager)
+        self.obd2_panel = None # Will be created on connect
         self.tab_rules = ttk.Frame(self.notebook)
         self.tab_cockpit = ttk.Frame(self.notebook)
         
         self.notebook.add(self.rev_eng_panel, text="Reverse Engineering")
+        # OBD2 tab will be added on connect
         self.notebook.add(self.tab_rules, text="Rules Manager")
         self.notebook.add(self.tab_cockpit, text="Cockpit")
 
@@ -96,6 +99,12 @@ class MainApp:
                     self.btn_log.config(state=tk.NORMAL, text="Start Logging")
                     self.logging_active = False
                     self.running = True
+                    
+                    # Create OBD2 panel now that we have a client
+                    if not self.obd2_panel:
+                        self.obd2_panel = OBD2Panel(self.notebook, self.client)
+                        self.notebook.insert(1, self.obd2_panel, text="OBD2 Scanner")
+                    
                     threading.Thread(target=self.rx_loop, daemon=True).start()
                 else:
                     self.lbl_status.config(text="Failed to start", foreground="red")
@@ -105,6 +114,8 @@ class MainApp:
         else:
             self.running = False
             self.logging_active = False
+            if self.obd2_panel:
+                self.obd2_panel.manager.stop_polling()
             self.client.close()
             self.client = None
             self.lbl_status.config(text="Disconnected", foreground="red")
@@ -128,19 +139,21 @@ class MainApp:
         while self.running and self.client:
             msg = self.client.read_message()
             if msg:
-                # msg is a simple object with command, data, can_id, dlc, frame_data
-                
                 direction = "Unknown"
                 if msg.command == CMD_CAN_MSG_FROM_SYSTEM:
                     direction = "SYS->ECU"
                 elif msg.command == CMD_CAN_MSG_FROM_COMPUTER:
                     direction = "ECU->SYS"
                 
-                # Update UI via Panel - MUST be done in Main Thread
                 if hasattr(msg, 'can_id'):
-                    # Use root.after to schedule the update on the main thread
-                    self.root.after(0, lambda t=time.time(), d=direction, i=msg.can_id, f=msg.frame_data: 
-                                    self.rev_eng_panel.on_message(t, d, i, f))
+                    # Schedule updates on the main thread
+                    self.root.after(0, self.dispatch_message, time.time(), direction, msg.can_id, msg.frame_data)
+
+    def dispatch_message(self, timestamp, direction, can_id, frame_data):
+        # Dispatch to all interested panels
+        self.rev_eng_panel.on_message(timestamp, direction, can_id, frame_data)
+        if self.obd2_panel:
+            self.obd2_panel.on_message(can_id, frame_data)
 
 if __name__ == "__main__":
     root = tk.Tk()
