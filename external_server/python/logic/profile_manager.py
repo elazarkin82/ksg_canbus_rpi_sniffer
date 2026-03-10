@@ -13,21 +13,34 @@ class ProfileManager:
 
     def load(self):
         if os.path.exists(self.filename):
-            try:
-                with open(self.filename, 'r') as f:
-                    loaded_data = json.load(f)
-                    # Merge keys to prevent errors if a key is missing in an old profile
-                    for key in self.data:
-                        if key in loaded_data:
-                            self.data[key] = loaded_data[key]
-            except Exception as e:
-                print(f"Failed to load profile: {e}")
+            self.load_from_file(self.filename)
+
+    def load_from_file(self, filepath):
+        try:
+            with open(filepath, 'r') as f:
+                loaded_data = json.load(f)
+                # Merge keys to prevent errors if a key is missing in an old profile
+                # Or replace entirely? Usually loading a profile implies replacing current config.
+                # Let's replace but keep structure safe.
+                self.data = {
+                    "decoders": loaded_data.get("decoders", {}),
+                    "message_configs": loaded_data.get("message_configs", {}),
+                    "mappings": loaded_data.get("mappings", {})
+                }
+                # Update filename to the loaded one so save() writes back to it?
+                # Or keep original filename? Usually "Load" implies switching context.
+                self.filename = filepath
+                print(f"Profile loaded from {filepath}")
+                return True
+        except Exception as e:
+            print(f"Failed to load profile from {filepath}: {e}")
+            return False
 
     def save(self):
         try:
             with open(self.filename, 'w') as f:
                 json.dump(self.data, f, indent=4)
-            print("Profile saved successfully.") # Added feedback
+            print("Profile saved successfully.")
         except Exception as e:
             print(f"Failed to save profile: {e}")
 

@@ -28,7 +28,8 @@ class ReverseEngineeringPanel(ttk.Frame):
         
         ttk.Button(toolbar, text="Clear", command=self.clear_table).pack(side=tk.LEFT, padx=5)
         
-        # New Save Button
+        # Load & Save Buttons
+        ttk.Button(toolbar, text="Load Profile", command=self.load_profile).pack(side=tk.LEFT, padx=5)
         ttk.Button(toolbar, text="Save Profile", command=self.save_profile).pack(side=tk.LEFT, padx=5)
 
         # Table
@@ -67,8 +68,18 @@ class ReverseEngineeringPanel(ttk.Frame):
     def set_logging_state(self, active):
         self.logging_active = active
 
+    def load_profile(self):
+        filename = filedialog.askopenfilename(filetypes=[("JSON Files", "*.json")])
+        if filename:
+            if self.profile_manager.load_from_file(filename):
+                self.refresh_table()
+
     def save_profile(self):
-        self.profile_manager.save()
+        filename = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON Files", "*.json")])
+        if filename:
+            # Update filename in manager and save
+            self.profile_manager.filename = filename
+            self.profile_manager.save()
 
     def _create_dynamic_menu(self, can_id, data_len):
         menu = tk.Menu(self, tearoff=0)
@@ -336,8 +347,41 @@ class ReverseEngineeringPanel(ttk.Frame):
             # Update row
             self.tree.item(item_id, values=(hex_id, protocol, pid_str, direction, count, "-", data_str, decoded_str))
         else:
+            # Insert sorted
+            self._insert_sorted(hex_id, protocol, pid_str, direction, data_str, decoded_str, key)
+
+    def _insert_sorted(self, hex_id, protocol, pid_str, direction, data_str, decoded_str, key):
+        # Convert hex_id to int for comparison
+        new_id_val = int(hex_id, 16)
+        new_pid_val = int(pid_str, 16) if pid_str != "-" else -1
+        
+        # Find insertion point
+        children = self.tree.get_children()
+        insert_idx = tk.END # Default to end
+        
+        for i, child in enumerate(children):
+            vals = self.tree.item(child, "values")
+            curr_id_val = int(vals[0], 16)
+            
+            if curr_id_val > new_id_val:
+                insert_idx = i
+                break
+            elif curr_id_val == new_id_val:
+                # If IDs match, check PID
+                curr_pid_str = vals[2]
+                curr_pid_val = int(curr_pid_str, 16) if curr_pid_str != "-" else -1
+                
+                if curr_pid_val > new_pid_val:
+                    insert_idx = i
+                    break
+        
+        # Insert at found index
+        if insert_idx == tk.END:
             item_id = self.tree.insert("", tk.END, values=(hex_id, protocol, pid_str, direction, 1, "-", data_str, decoded_str))
-            self.messages_map[key] = item_id
+        else:
+            item_id = self.tree.insert("", insert_idx, values=(hex_id, protocol, pid_str, direction, 1, "-", data_str, decoded_str))
+            
+        self.messages_map[key] = item_id
 
     def on_double_click(self, event):
         item_id = self.tree.identify_row(event.y)
