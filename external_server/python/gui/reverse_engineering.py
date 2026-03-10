@@ -194,6 +194,11 @@ class ReverseEngineeringPanel(ttk.Frame):
     def set_protocol(self, can_id, protocol):
         config = self.profile_manager.get_message_config(can_id)
         config["protocol"] = protocol
+        
+        # Apply protocol defaults for PID
+        defaults = self.profile_manager.get_protocol_defaults(protocol)
+        config.update(defaults)
+        
         self.profile_manager.set_message_config(can_id, config)
         self.refresh_table() # Re-render table to reflect changes
 
@@ -321,7 +326,7 @@ class ReverseEngineeringPanel(ttk.Frame):
         hex_id = hex(can_id)
         data_str = data.hex()
         
-        # Get Config
+        # Get Config (now with auto-detection for new IDs)
         config = self.profile_manager.get_message_config(can_id)
         protocol = config.get("protocol", "Manual")
         has_pid = config.get("has_pid", False)
