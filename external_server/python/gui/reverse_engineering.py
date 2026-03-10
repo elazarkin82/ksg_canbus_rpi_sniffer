@@ -6,6 +6,22 @@ from gui.decoder_editor import DecoderEditorDialog
 from logic.decoder import Decoder
 
 class ReverseEngineeringPanel(ttk.Frame):
+    
+    # OBD2 Presets (PID -> {name, formula, length})
+    OBD2_PRESETS = {
+        0x04: {"name": "Engine Load", "formula": "d[0] * 100.0 / 255.0", "length": 1},
+        0x05: {"name": "Coolant Temp", "formula": "d[0] - 40", "length": 1},
+        0x0A: {"name": "Fuel Pressure", "formula": "d[0] * 3", "length": 1},
+        0x0B: {"name": "Intake MAP", "formula": "d[0]", "length": 1},
+        0x0C: {"name": "Engine RPM", "formula": "(d[0]*256 + d[1])/4.0", "length": 2},
+        0x0D: {"name": "Vehicle Speed", "formula": "d[0]", "length": 1},
+        0x0E: {"name": "Timing Advance", "formula": "d[0]/2.0 - 64.0", "length": 1},
+        0x10: {"name": "MAF Air Flow", "formula": "(d[0]*256 + d[1])/100.0", "length": 2},
+        0x11: {"name": "Throttle Position", "formula": "d[0] * 100.0 / 255.0", "length": 1},
+        0x1F: {"name": "Run Time", "formula": "f'{d[0]*256+d[1]//3600:02}:{(d[0]*256+d[1]%3600)//60:02}:{d[0]*256+d[1]%60:02}'", "length": 2},
+        0x2F: {"name": "Fuel Level", "formula": "d[0] * 100.0 / 255.0", "length": 1},
+    }
+
     def __init__(self, parent, profile_manager):
         super().__init__(parent)
         self.profile_manager = profile_manager
@@ -119,17 +135,9 @@ class ReverseEngineeringPanel(ttk.Frame):
             if data_len >= req_len:
                 obd_menu.add_command(label=name, command=lambda: self.apply_preset("formula", 0, req_len, formula))
 
-        add_obd("Engine RPM", "(d[0]*256 + d[1])/4.0", 2)
-        add_obd("Vehicle Speed", "d[0]", 1)
-        add_obd("Coolant Temp", "d[0] - 40", 1)
-        add_obd("Throttle Position", "d[0] * 100.0 / 255.0", 1)
-        add_obd("Engine Load", "d[0] * 100.0 / 255.0", 1)
-        add_obd("Fuel Level", "d[0] * 100.0 / 255.0", 1)
-        add_obd("MAF Air Flow", "(d[0]*256 + d[1])/100.0", 2)
-        add_obd("Timing Advance", "d[0]/2.0 - 64.0", 1)
-        add_obd("Intake MAP", "d[0]", 1)
-        add_obd("Fuel Pressure", "d[0] * 3", 1)
-        add_obd("Run Time", "f'{d[0]*256+d[1]//3600:02}:{(d[0]*256+d[1]%3600)//60:02}:{d[0]*256+d[1]%60:02}'", 2)
+        # Use the class constant for presets
+        for pid, info in sorted(self.OBD2_PRESETS.items()):
+             add_obd(f"{info['name']} ({hex(pid)})", info['formula'], info['length'])
 
         menu.add_cascade(label="OBD-II Presets", menu=obd_menu)
         
@@ -338,6 +346,26 @@ class ReverseEngineeringPanel(ttk.Frame):
         if has_pid and len(data) > pid_index:
             pid_val = data[pid_index]
             pid_str = hex(pid_val)
+
+        # --- Auto-Apply Decoder for OBD2 ---
+        if protocol == "OBD2" and pid_val is not None:
+            existing_signals = self.profile_manager.get_signals(can_id, pid_val)
+            if not existing_signals and pid_val in self.OBD2_PRESETS:
+                preset = self.OBD2_PRESETS[pid_val]
+                # Standard OBD2 response: [Len, Mode, PID, A, B, C, D]
+                # Data starts after PID. If pid_index is 2, data starts at 3.
+                start_byte = pid_index + 1
+                
+                signal = {
+                    "name": preset["name"],
+                    "start_byte": start_byte,
+                    "length": preset["length"],
+                    "type": "formula",
+                    "scale": 1.0,
+                    "offset": 0.0,
+                    "formula": preset["formula"]
+                }
+                self.profile_manager.set_signals(can_id, [signal], pid_val)
 
         # Decode
         decoded_str = self._decode_data(can_id, data, pid_val)
