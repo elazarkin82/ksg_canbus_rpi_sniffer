@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 import threading
 import time
 import backend.udp_client # Import module to access global DEBUG_MODE
@@ -20,9 +20,24 @@ class MainApp:
     def __init__(self, root):
         self.root = root
         self.root.title("External Server - CAN Sniffer Control")
-        self.root.geometry("1000x700")
+        
+        # Start maximized
+        try:
+            self.root.state('zoomed')
+        except tk.TclError:
+            # Fallback for systems that don't support 'zoomed' (e.g. some Linux/Mac)
+            try:
+                self.root.attributes('-zoomed', True)
+            except tk.TclError:
+                self.root.geometry("1200x800") # Larger default fallback
         
         self.settings_manager = SettingsManager()
+        
+        # Ensure default setting for max messages exists
+        if "max_log_messages" not in self.settings_manager.settings:
+            self.settings_manager.settings["max_log_messages"] = 100000
+            self.settings_manager.save()
+            
         self.profile_manager = ProfileManager()
         self.client = None
         self.running = False
@@ -127,13 +142,33 @@ class MainApp:
             self.logging_active = not self.logging_active
             self.client.set_logging(self.logging_active)
             
-            # Update UI state
-            self.rev_eng_panel.set_logging_state(self.logging_active)
-            
             if self.logging_active:
+                # Update max limit from settings before starting
+                max_msgs = int(self.settings_manager.settings.get("max_log_messages", 100000))
+                self.rev_eng_panel.recorder.max_messages = max_msgs
+                self.rev_eng_panel.recorder.limit_reached = False
+                
                 self.btn_log.config(text="Stop Logging")
             else:
                 self.btn_log.config(text="Start Logging")
+                
+            # Update UI state
+            self.rev_eng_panel.set_logging_state(self.logging_active)
+
+    def force_stop_logging_due_to_limit(self):
+        if self.logging_active:
+            self.logging_active = False
+            if self.client:
+                self.client.set_logging(False)
+            self.btn_log.config(text="Start Logging")
+            self.rev_eng_panel.set_logging_state(False)
+            
+            limit = self.settings_manager.settings.get("max_log_messages", 100000)
+            messagebox.showwarning(
+                "Logging Stopped", 
+                f"Logging automatically stopped because the memory limit of {limit} messages was reached.\n\n"
+                "You can increase this limit in File -> Settings."
+            )
 
     def rx_loop(self):
         while self.running and self.client:
@@ -150,6 +185,11 @@ class MainApp:
                     self.root.after(0, self.dispatch_message, time.time(), direction, msg.can_id, msg.frame_data)
 
     def dispatch_message(self, timestamp, direction, can_id, frame_data):
+        # Check if limit was reached during dispatch
+        if self.logging_active and self.rev_eng_panel.recorder.limit_reached:
+            self.force_stop_logging_due_to_limit()
+            return
+
         # Dispatch to all interested panels
         self.rev_eng_panel.on_message(timestamp, direction, can_id, frame_data)
         if self.obd2_panel:

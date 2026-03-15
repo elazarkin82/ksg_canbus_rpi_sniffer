@@ -14,10 +14,11 @@ class Decoder:
         if type_name == "formula" and formula:
             try:
                 # Safe environment for eval
-                # 'd' is the data bytes array, sliced from start_byte
+                # 'x' is the data bytes array, sliced from start_byte
                 # This allows formulas to be relative to the signal start
+                # Also support 'd' for backwards compatibility with old profiles
                 sliced_data = list(data[byte_idx:])
-                env = {"d": sliced_data, "m": math, "int": int, "float": float}
+                env = {"x": sliced_data, "d": sliced_data, "m": math, "int": int, "float": float}
                 return eval(formula, {"__builtins__": {}}, env)
             except Exception as e:
                 return f"Err: {e}"

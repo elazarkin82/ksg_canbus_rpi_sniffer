@@ -1,6 +1,7 @@
 import tkinter as tk
-from tkinter import ttk, filedialog, simpledialog
+from tkinter import ttk, filedialog, simpledialog, messagebox
 import time
+import csv
 from logic.recorder import Recorder
 from gui.decoder_editor import DecoderEditorDialog
 from logic.decoder import Decoder
@@ -9,17 +10,24 @@ class ReverseEngineeringPanel(ttk.Frame):
     
     # OBD2 Presets (PID -> {name, formula, length})
     OBD2_PRESETS = {
-        0x04: {"name": "Engine Load", "formula": "d[0] * 100.0 / 255.0", "length": 1},
-        0x05: {"name": "Coolant Temp", "formula": "d[0] - 40", "length": 1},
-        0x0A: {"name": "Fuel Pressure", "formula": "d[0] * 3", "length": 1},
-        0x0B: {"name": "Intake MAP", "formula": "d[0]", "length": 1},
-        0x0C: {"name": "Engine RPM", "formula": "(d[0]*256 + d[1])/4.0", "length": 2},
-        0x0D: {"name": "Vehicle Speed", "formula": "d[0]", "length": 1},
-        0x0E: {"name": "Timing Advance", "formula": "d[0]/2.0 - 64.0", "length": 1},
-        0x10: {"name": "MAF Air Flow", "formula": "(d[0]*256 + d[1])/100.0", "length": 2},
-        0x11: {"name": "Throttle Position", "formula": "d[0] * 100.0 / 255.0", "length": 1},
-        0x1F: {"name": "Run Time", "formula": "f'{d[0]*256+d[1]//3600:02}:{(d[0]*256+d[1]%3600)//60:02}:{d[0]*256+d[1]%60:02}'", "length": 2},
-        0x2F: {"name": "Fuel Level", "formula": "d[0] * 100.0 / 255.0", "length": 1},
+        0x04: {"name": "Engine Load", "formula": "x[0] * 100.0 / 255.0", "length": 1},
+        0x05: {"name": "Coolant Temp", "formula": "x[0] - 40", "length": 1},
+        0x0A: {"name": "Fuel Pressure", "formula": "x[0] * 3", "length": 1},
+        0x0B: {"name": "Intake MAP", "formula": "x[0]", "length": 1},
+        0x0C: {"name": "Engine RPM", "formula": "(x[0]*256 + x[1])/4.0", "length": 2},
+        0x0D: {"name": "Vehicle Speed", "formula": "x[0]", "length": 1},
+        0x0E: {"name": "Timing Advance", "formula": "x[0]/2.0 - 64.0", "length": 1},
+        0x10: {"name": "MAF Air Flow", "formula": "(x[0]*256 + x[1])/100.0", "length": 2},
+        0x11: {"name": "Throttle Position", "formula": "x[0] * 100.0 / 255.0", "length": 1},
+        0x1F: {"name": "Run Time", "formula": "f'{x[0]*256+x[1]//3600:02}:{(x[0]*256+x[1]%3600)//60:02}:{x[0]*256+x[1]%60:02}'", "length": 2},
+        0x2F: {"name": "Fuel Level", "formula": "x[0] * 100.0 / 255.0", "length": 1},
+    }
+
+    # Common Internal CAN Presets (Name -> {formula, length})
+    INTERNAL_PRESETS = {
+        "Engine RPM (2 Bytes, Div 4)": {"name": "Engine RPM", "formula": "(x[0]*256 + x[1])/4.0", "length": 2},
+        "Vehicle Speed (1 Byte)": {"name": "Vehicle Speed", "formula": "x[0]", "length": 1},
+        "Percent (1 Byte)": {"name": "Percent Value", "formula": "x[0] * 100.0 / 255.0", "length": 1}
     }
 
     def __init__(self, parent, profile_manager):
@@ -39,12 +47,18 @@ class ReverseEngineeringPanel(ttk.Frame):
         toolbar = ttk.Frame(self)
         toolbar.pack(fill=tk.X, padx=5, pady=5)
         
-        self.btn_record = ttk.Button(toolbar, text="Record", command=self.toggle_record)
-        self.btn_record.pack(side=tk.LEFT)
+        # Replaced Record button with Save Record
+        self.btn_save_record = ttk.Button(toolbar, text="Save Record", command=self.save_recording, state=tk.DISABLED)
+        self.btn_save_record.pack(side=tk.LEFT)
         
-        ttk.Button(toolbar, text="Clear", command=self.clear_table).pack(side=tk.LEFT, padx=5)
+        # Load Recording Button
+        self.btn_load_record = ttk.Button(toolbar, text="Load Recording", command=self.load_recording)
+        self.btn_load_record.pack(side=tk.LEFT, padx=5)
         
-        # Load & Save Buttons
+        self.btn_clear = ttk.Button(toolbar, text="Clear", command=self.clear_table)
+        self.btn_clear.pack(side=tk.LEFT, padx=5)
+        
+        # Load & Save Profile Buttons
         ttk.Button(toolbar, text="Load Profile", command=self.load_profile).pack(side=tk.LEFT, padx=5)
         ttk.Button(toolbar, text="Save Profile", command=self.save_profile).pack(side=tk.LEFT, padx=5)
 
@@ -83,6 +97,83 @@ class ReverseEngineeringPanel(ttk.Frame):
 
     def set_logging_state(self, active):
         self.logging_active = active
+        if active:
+            self.btn_save_record.config(state=tk.DISABLED)
+            self.btn_load_record.config(state=tk.DISABLED)
+            self.btn_clear.config(state=tk.DISABLED)
+        else:
+            self.btn_load_record.config(state=tk.NORMAL)
+            self.btn_clear.config(state=tk.NORMAL)
+            if len(self.recorder.get_messages()) > 0:
+                self.btn_save_record.config(state=tk.NORMAL)
+            else:
+                self.btn_save_record.config(state=tk.DISABLED)
+
+    def save_recording(self):
+        if self.logging_active:
+            messagebox.showwarning("Warning", "Please stop logging before saving.")
+            return
+            
+        messages = self.recorder.get_messages()
+        if not messages:
+            messagebox.showinfo("Info", "No data to save.")
+            return
+            
+        filename = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv")])
+        if filename:
+            if self.recorder.save_to_file(filename):
+                messagebox.showinfo("Success", f"Successfully saved {len(messages)} messages.")
+            else:
+                messagebox.showerror("Error", "Failed to save recording.")
+
+    def load_recording(self):
+        filename = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
+        if not filename:
+            return
+            
+        if self.logging_active:
+            messagebox.showwarning("Warning", "Please stop logging before loading a recording.")
+            return
+            
+        # Confirm clear
+        if self.display_buffer:
+            if not messagebox.askyesno("Confirm", "Loading a recording will clear the current display. Continue?"):
+                return
+                
+        self.clear_table()
+        
+        try:
+            with open(filename, 'r', newline='') as f:
+                reader = csv.DictReader(f)
+                count = 0
+                for row in reader:
+                    # row format: timestamp, direction, can_id, data
+                    timestamp = float(row['timestamp'])
+                    direction = row['direction']
+                    can_id = int(row['can_id'], 16)
+                    # Convert hex string data back to bytes
+                    data = bytes.fromhex(row['data'])
+                    
+                    # Add to local buffer and update UI
+                    self.display_buffer.append({
+                        'timestamp': timestamp,
+                        'direction': direction,
+                        'can_id': can_id,
+                        'data': data
+                    })
+                    # Add to recorder so it can be saved again if needed
+                    self.recorder.add_message(timestamp, direction, can_id, data)
+                    self._update_ui_row(timestamp, direction, can_id, data)
+                    count += 1
+                    
+            print(f"Loaded {count} messages from {filename}")
+            
+            # Enable save button
+            if count > 0:
+                self.btn_save_record.config(state=tk.NORMAL)
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load recording:\n{e}")
 
     def load_profile(self):
         filename = filedialog.askopenfilename(filetypes=[("JSON Files", "*.json")])
@@ -128,16 +219,25 @@ class ReverseEngineeringPanel(ttk.Frame):
         menu.add_cascade(label="Protocol Settings", menu=proto_menu)
         menu.add_separator()
 
+        # --- Internal CAN Presets ---
+        internal_menu = tk.Menu(menu, tearoff=0)
+        for key, info in self.INTERNAL_PRESETS.items():
+            if data_len >= info['length']:
+                label_text = f"{info['formula']} (used for example for {info['name']})"
+                internal_menu.add_command(label=label_text, command=lambda n=info['name'], f=info['formula'], l=info['length']: self.apply_preset("formula", 0, l, f, name=n))
+        menu.add_cascade(label="Common Presets", menu=internal_menu)
+
         # --- OBD-II Presets ---
         obd_menu = tk.Menu(menu, tearoff=0)
         
-        def add_obd(name, formula, req_len):
+        def add_obd(label_text, formula, req_len, name):
             if data_len >= req_len:
-                obd_menu.add_command(label=name, command=lambda: self.apply_preset("formula", 0, req_len, formula))
+                obd_menu.add_command(label=label_text, command=lambda: self.apply_preset("formula", 0, req_len, formula, name=name))
 
         # Use the class constant for presets
         for pid, info in sorted(self.OBD2_PRESETS.items()):
-             add_obd(f"{info['name']} ({hex(pid)})", info['formula'], info['length'])
+             label = f"{info['formula']} (used for example for {info['name']})"
+             add_obd(label, info['formula'], info['length'], info['name'])
 
         menu.add_cascade(label="OBD-II Presets", menu=obd_menu)
         
@@ -147,20 +247,20 @@ class ReverseEngineeringPanel(ttk.Frame):
         # Uint8
         u8_menu = tk.Menu(generic_menu, tearoff=0)
         for i in range(data_len):
-            u8_menu.add_command(label=f"Byte {i}", command=lambda x=i: self.apply_preset("uint8", x, 1))
+            u8_menu.add_command(label=f"Byte {i}", command=lambda idx=i: self.apply_preset("uint8", idx, 1))
         generic_menu.add_cascade(label="Uint8", menu=u8_menu)
 
         # Uint16 BE
         if data_len >= 2:
             u16_menu = tk.Menu(generic_menu, tearoff=0)
             for i in range(data_len - 1):
-                u16_menu.add_command(label=f"Bytes {i}-{i+1}", command=lambda x=i: self.apply_preset("uint16_be", x, 2))
+                u16_menu.add_command(label=f"Bytes {i}-{i+1}", command=lambda idx=i: self.apply_preset("uint16_be", idx, 2))
             generic_menu.add_cascade(label="Uint16 (BE)", menu=u16_menu)
 
         # Percent
         pct_menu = tk.Menu(generic_menu, tearoff=0)
         for i in range(data_len):
-            pct_menu.add_command(label=f"Byte {i}", command=lambda x=i: self.apply_preset("percent", x, 1))
+            pct_menu.add_command(label=f"Byte {i}", command=lambda idx=i: self.apply_preset("percent", idx, 1))
         generic_menu.add_cascade(label="Percent", menu=pct_menu)
 
         generic_menu.add_separator()
@@ -228,11 +328,11 @@ class ReverseEngineeringPanel(ttk.Frame):
 
     # --- Decoder Methods ---
 
-    def apply_preset(self, type_name, start_byte, length, formula=None):
+    def apply_preset(self, type_name, start_byte, length, formula=None, name="Value"):
         if self.selected_can_id is None: return
         
         signal = {
-            "name": "Value",
+            "name": name,
             "start_byte": start_byte,
             "length": length,
             "type": type_name,
@@ -248,7 +348,7 @@ class ReverseEngineeringPanel(ttk.Frame):
     def ask_formula(self):
         if self.selected_can_id is None: return
         
-        formula = simpledialog.askstring("Custom Formula", "Enter formula (e.g. d[0]*5 + d[1]):")
+        formula = simpledialog.askstring("Custom Formula", "Enter formula (e.g. x[0]*5 + x[1]):")
         if formula:
             self.apply_preset("formula", 0, 0, formula)
 
@@ -288,22 +388,13 @@ class ReverseEngineeringPanel(ttk.Frame):
             decoded_str = ", ".join(parts)
         return decoded_str
 
-    def toggle_record(self):
-        if not self.recorder.recording:
-            self.recorder.start()
-            self.btn_record.config(text="Stop & Save")
-        else:
-            self.recorder.stop()
-            self.btn_record.config(text="Record")
-            filename = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv")])
-            if filename:
-                self.recorder.save_to_file(filename)
-
     def clear_table(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
         self.messages_map.clear()
-        self.display_buffer.clear() 
+        self.display_buffer.clear()
+        self.recorder.clear()
+        self.btn_save_record.config(state=tk.DISABLED)
 
     def refresh_table(self):
         # Clear UI only
@@ -317,7 +408,13 @@ class ReverseEngineeringPanel(ttk.Frame):
 
     def on_message(self, timestamp, direction, can_id, data):
         # 1. Add to recorder (for file saving)
-        self.recorder.add_message(timestamp, direction, can_id, data)
+        # It handles the max limit internally
+        if not self.recorder.add_message(timestamp, direction, can_id, data):
+            # Limit reached, UI handler in main.py will detect this and stop logging
+            return
+        
+        # Enable save button if not logging (though we usually are when this is called)
+        # However, to be safe, state updates are handled by set_logging_state
         
         # 2. Add to local buffer (for re-grouping)
         self.display_buffer.append({
@@ -352,8 +449,6 @@ class ReverseEngineeringPanel(ttk.Frame):
             existing_signals = self.profile_manager.get_signals(can_id, pid_val)
             if not existing_signals and pid_val in self.OBD2_PRESETS:
                 preset = self.OBD2_PRESETS[pid_val]
-                # Standard OBD2 response: [Len, Mode, PID, A, B, C, D]
-                # Data starts after PID. If pid_index is 2, data starts at 3.
                 start_byte = pid_index + 1
                 
                 signal = {
@@ -433,4 +528,8 @@ class ReverseEngineeringPanel(ttk.Frame):
             self.profile_manager.set_signals(cid, sigs, pid)
             self.refresh_row(cid, pid)
 
-        DecoderEditorDialog(self, can_id, current_signals, save_callback, pid=pid)
+        # Pass the current pid_index if available
+        config = self.profile_manager.get_message_config(can_id)
+        pid_index = config.get("pid_index", 0)
+
+        DecoderEditorDialog(self, can_id, current_signals, save_callback, pid=pid, recorder=self.recorder, pid_index=pid_index)
