@@ -121,28 +121,43 @@ int32_t UdpCommunication::write(const uint8_t* data, size_t length)
         return -1;
     }
 
-    if (m_remotePort != 0)
+    // We must have received at least one packet to know the client's IP
+    if (!m_hasLastSender)
     {
-        // Use configured remote address
-        memset(&destAddr, 0, sizeof(destAddr));
-        destAddr.sin_family = AF_INET;
-        destAddr.sin_port = htons(m_remotePort);
-        if (inet_pton(AF_INET, m_ip, &destAddr.sin_addr) <= 0)
+        // If we have a fixed IP configured that isn't 0.0.0.0, we could use it here.
+        // But for dynamic IP learning, we must wait for a message.
+        if (m_ip[0] != '\0' && strncmp(m_ip, "0.0.0.0", 7) != 0 && m_remotePort != 0)
         {
-            return -1;
+             memset(&destAddr, 0, sizeof(destAddr));
+             destAddr.sin_family = AF_INET;
+             destAddr.sin_port = htons(m_remotePort);
+             if (inet_pton(AF_INET, m_ip, &destAddr.sin_addr) <= 0)
+             {
+                 return -1;
+             }
+        }
+        else
+        {
+             return 0; // Cannot send yet, waiting for client to talk first
         }
     }
     else
     {
-        // Use last sender address (Dynamic mode)
-        if (m_hasLastSender)
+        // 1. Set destination family and IP from the last sender (dynamic IP)
+        memset(&destAddr, 0, sizeof(destAddr));
+        destAddr.sin_family = AF_INET;
+        destAddr.sin_addr = m_lastSender.sin_addr;
+
+        // 2. Set destination port based on configuration (fixed or dynamic port)
+        if (m_remotePort != 0)
         {
-            memcpy(&destAddr, &m_lastSender, sizeof(destAddr));
+            // Hybrid mode: Use the fixed remote port from config
+            destAddr.sin_port = htons(m_remotePort);
         }
         else
         {
-            // No sender yet, cannot reply
-            return 0; // Or -1? 0 means "nothing sent but no error"
+            // Fully dynamic mode: Use the port from the last sender
+            destAddr.sin_port = m_lastSender.sin_port;
         }
     }
 
