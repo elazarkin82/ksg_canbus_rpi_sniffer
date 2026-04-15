@@ -69,7 +69,8 @@ class ReverseEngineeringPanel(ttk.Frame):
         # Helper to add preset if length matches
         def add_obd(name, formula, req_len):
             if data_len >= req_len:
-                obd_menu.add_command(label=name, command=lambda: self.apply_preset("formula", 0, req_len, formula))
+                # Pass the name directly
+                obd_menu.add_command(label=name, command=lambda: self.apply_preset("formula", 0, req_len, formula, name=name))
 
         add_obd("Engine RPM", "(d[0]*256 + d[1])/4.0", 2)
         add_obd("Vehicle Speed", "d[0]", 1)
@@ -136,12 +137,18 @@ class ReverseEngineeringPanel(ttk.Frame):
             except:
                 pass
 
-    def apply_preset(self, type_name, start_byte, length, formula=None):
+    def apply_preset(self, type_name, start_byte, length, formula=None, name=None):
         if self.selected_can_id is None: return
+        
+        # If name is not provided (Generic types), ask user
+        if name is None:
+            default_name = f"Signal {start_byte}"
+            name = simpledialog.askstring("Signal Name", "Enter name for this signal:", initialvalue=default_name)
+            if name is None: return # User cancelled
         
         # Create a single signal definition
         signal = {
-            "name": "Value",
+            "name": name,
             "start_byte": start_byte,
             "length": length,
             "type": type_name,
@@ -156,9 +163,12 @@ class ReverseEngineeringPanel(ttk.Frame):
     def ask_formula(self):
         if self.selected_can_id is None: return
         
+        name = simpledialog.askstring("Signal Name", "Enter name for this signal:", initialvalue="Custom Signal")
+        if name is None: return
+
         formula = simpledialog.askstring("Custom Formula", "Enter formula (e.g. d[0]*5 + d[1]):")
         if formula:
-            self.apply_preset("formula", 0, 0, formula)
+            self.apply_preset("formula", 0, 0, formula, name=name)
 
     def clear_decoder(self):
         if self.selected_can_id is None: return

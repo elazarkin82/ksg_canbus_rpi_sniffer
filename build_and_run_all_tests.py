@@ -64,17 +64,27 @@ def create_release(debug_mode=False, debug_msg_mode=False):
         shutil.rmtree(release_root)
     os.makedirs(release_root)
 
-    # 1. Sniffer Service (Ubuntu)
+    # 1. Sniffer Service & Emulators (Ubuntu)
     ubuntu_dir = os.path.join(release_root, "sniffer_service_release", "ubuntu")
     os.makedirs(ubuntu_dir)
     
+    # Copy sniffer
     if os.path.exists("sniffer_service"):
         shutil.copy("sniffer_service", ubuntu_dir)
         print(f"Copied sniffer_service (Ubuntu) to {ubuntu_dir}")
     else:
         print_colored("sniffer_service not found in build directory!", RED)
+        
+    # Copy emulators
+    if os.path.exists("car_system_emulator"):
+        shutil.copy("car_system_emulator", ubuntu_dir)
+        print(f"Copied car_system_emulator (Ubuntu) to {ubuntu_dir}")
+    if os.path.exists("car_computer_emulator"):
+        shutil.copy("car_computer_emulator", ubuntu_dir)
+        print(f"Copied car_computer_emulator (Ubuntu) to {ubuntu_dir}")
 
-    # 2. Sniffer Service (RPi)
+
+    # 2. Sniffer Service & Emulators (RPi)
     rpi_dir = os.path.join(release_root, "sniffer_service_release", "rpi")
     os.makedirs(rpi_dir)
     
@@ -99,9 +109,13 @@ def create_release(debug_mode=False, debug_msg_mode=False):
 
         # Use project_root instead of ..
         if run_command(cmake_cmd, cwd=build_rpi_dir) == 0:
-            if run_command("make sniffer_service", cwd=build_rpi_dir) == 0:
-                shutil.copy(os.path.join(build_rpi_dir, "sniffer_service"), rpi_dir)
-                print(f"Copied sniffer_service (RPi) to {rpi_dir}")
+            # Build all required targets for RPi
+            build_targets = "sniffer_service car_system_emulator car_computer_emulator"
+            if run_command(f"make {build_targets}", cwd=build_rpi_dir) == 0:
+                # Copy all targets
+                for target in build_targets.split():
+                    shutil.copy(os.path.join(build_rpi_dir, target), rpi_dir)
+                    print(f"Copied {target} (RPi) to {rpi_dir}")
             else:
                 print_colored("Failed to build for RPi", RED)
         else:

@@ -42,7 +42,11 @@ class DecoderEditorDialog(tk.Toplevel):
 
         ttk.Label(edit_frame, text="Type:").grid(row=1, column=0)
         self.type_var = tk.StringVar(value="uint8")
-        type_cb = ttk.Combobox(edit_frame, textvariable=self.type_var, values=["uint8", "uint16_be", "uint16_le"])
+        # Added more types to the combobox
+        type_cb = ttk.Combobox(edit_frame, textvariable=self.type_var, values=[
+            "uint8", "int8", "uint16_be", "uint16_le", "int16_be", "int16_le", 
+            "uint32_be", "uint32_le", "float", "percent", "ascii", "formula"
+        ])
         type_cb.grid(row=1, column=1)
 
         ttk.Label(edit_frame, text="Scale:").grid(row=1, column=2)
@@ -71,7 +75,9 @@ class DecoderEditorDialog(tk.Toplevel):
             "start_byte": self.start_var.get(),
             "length": self.len_var.get(),
             "type": self.type_var.get(),
-            "scale": self.scale_var.get()
+            "scale": self.scale_var.get(),
+            "offset": 0.0, # Default offset
+            "formula": None # Default formula
         }
         self.signals.append(new_sig)
         self._refresh_list()

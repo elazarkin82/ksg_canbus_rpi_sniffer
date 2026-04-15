@@ -40,6 +40,11 @@ class UdpClient:
         test_path = os.path.abspath("../build_tests/libsniffer_client.so")
         if os.path.exists(test_path):
             return ctypes.CDLL(test_path)
+
+        try:
+            return ctypes.CDLL('libsniffer_client.so')
+        except OSError:
+            pass
             
         raise FileNotFoundError("libsniffer_client.so not found")
 
