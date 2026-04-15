@@ -1,11 +1,11 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 
 class SettingsDialog(tk.Toplevel):
     def __init__(self, parent, settings_manager):
         super().__init__(parent)
         self.title("Settings")
-        self.geometry("300x250")
+        self.geometry("350x250")
         self.settings_manager = settings_manager
         self.entries = {}
 
@@ -41,12 +41,21 @@ class SettingsDialog(tk.Toplevel):
     def save(self):
         for key, entry in self.entries.items():
             val = entry.get()
-            # Try to convert to int if original was int
-            if isinstance(self.settings_manager.DEFAULT_SETTINGS.get(key), int):
+            
+            # Special validation for max_log_messages
+            if key == "max_log_messages":
+                try:
+                    val = int(val)
+                    if val <= 0:
+                        raise ValueError()
+                except ValueError:
+                    messagebox.showerror("Error", "Max Log Messages must be a positive integer.")
+                    return
+            elif isinstance(self.settings_manager.DEFAULT_SETTINGS.get(key), int):
                 try:
                     val = int(val)
                 except ValueError:
-                    pass # Keep as string if conversion fails (or handle error)
+                    pass
             
             self.settings_manager.settings[key] = val
         

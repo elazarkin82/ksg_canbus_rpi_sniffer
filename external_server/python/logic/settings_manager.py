@@ -6,7 +6,8 @@ class SettingsManager:
         "sniffer_ip": "127.0.0.1",
         "sniffer_port": 9095,
         "local_port": 9096,
-        "keep_alive_ms": 500
+        "keep_alive_ms": 500,
+        "max_log_messages": 100000
     }
 
     def __init__(self, filename="settings.json"):

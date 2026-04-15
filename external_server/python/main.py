@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 import threading
 import time
 import backend.udp_client # Import module to access global DEBUG_MODE
@@ -10,6 +10,8 @@ from logic.settings_manager import SettingsManager
 from logic.profile_manager import ProfileManager
 from gui.settings_dialog import SettingsDialog
 from gui.reverse_engineering import ReverseEngineeringPanel
+from gui.obd2_panel import OBD2Panel # New import
+from gui.cockpit_panel import CockpitPanel # New import
 
 # Command IDs (Must match C++ header)
 CMD_CAN_MSG_FROM_SYSTEM = 0x2001
@@ -19,9 +21,24 @@ class MainApp:
     def __init__(self, root):
         self.root = root
         self.root.title("External Server - CAN Sniffer Control")
-        self.root.geometry("1000x700")
+        
+        # Start maximized
+        try:
+            self.root.state('zoomed')
+        except tk.TclError:
+            # Fallback for systems that don't support 'zoomed' (e.g. some Linux/Mac)
+            try:
+                self.root.attributes('-zoomed', True)
+            except tk.TclError:
+                self.root.geometry("1200x800") # Larger default fallback
         
         self.settings_manager = SettingsManager()
+        
+        # Ensure default setting for max messages exists
+        if "max_log_messages" not in self.settings_manager.settings:
+            self.settings_manager.settings["max_log_messages"] = 100000
+            self.settings_manager.save()
+            
         self.profile_manager = ProfileManager()
         self.client = None
         self.running = False
@@ -65,12 +82,16 @@ class MainApp:
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         self.rev_eng_panel = ReverseEngineeringPanel(self.notebook, self.profile_manager)
+        self.obd2_panel = None # Will be created on connect
         self.tab_rules = ttk.Frame(self.notebook)
-        self.tab_cockpit = ttk.Frame(self.notebook)
+        
+        # Initialize Cockpit Panel
+        self.cockpit_panel = CockpitPanel(self.notebook, self.profile_manager)
         
         self.notebook.add(self.rev_eng_panel, text="Reverse Engineering")
+        # OBD2 tab will be added on connect
         self.notebook.add(self.tab_rules, text="Rules Manager")
-        self.notebook.add(self.tab_cockpit, text="Cockpit")
+        self.notebook.add(self.cockpit_panel, text="Cockpit")
 
     def open_settings(self):
         SettingsDialog(self.root, self.settings_manager)
@@ -96,6 +117,12 @@ class MainApp:
                     self.btn_log.config(state=tk.NORMAL, text="Start Logging")
                     self.logging_active = False
                     self.running = True
+                    
+                    # Create OBD2 panel now that we have a client
+                    if not self.obd2_panel:
+                        self.obd2_panel = OBD2Panel(self.notebook, self.client)
+                        self.notebook.insert(1, self.obd2_panel, text="OBD2 Scanner")
+                    
                     threading.Thread(target=self.rx_loop, daemon=True).start()
                 else:
                     self.lbl_status.config(text="Failed to start", foreground="red")
@@ -105,6 +132,8 @@ class MainApp:
         else:
             self.running = False
             self.logging_active = False
+            if self.obd2_panel:
+                self.obd2_panel.manager.stop_polling()
             self.client.close()
             self.client = None
             self.lbl_status.config(text="Disconnected", foreground="red")
@@ -116,31 +145,67 @@ class MainApp:
             self.logging_active = not self.logging_active
             self.client.set_logging(self.logging_active)
             
-            # Update UI state
-            self.rev_eng_panel.set_logging_state(self.logging_active)
-            
             if self.logging_active:
+                # Update max limit from settings before starting
+                max_msgs = int(self.settings_manager.settings.get("max_log_messages", 100000))
+                self.rev_eng_panel.recorder.max_messages = max_msgs
+                self.rev_eng_panel.recorder.limit_reached = False
+                
                 self.btn_log.config(text="Stop Logging")
             else:
                 self.btn_log.config(text="Start Logging")
+                
+            # Update UI state
+            self.rev_eng_panel.set_logging_state(self.logging_active)
+
+    def force_stop_logging_due_to_limit(self):
+        if self.logging_active:
+            self.logging_active = False
+            if self.client:
+                self.client.set_logging(False)
+            self.btn_log.config(text="Start Logging")
+            self.rev_eng_panel.set_logging_state(False)
+            
+            limit = self.settings_manager.settings.get("max_log_messages", 100000)
+            messagebox.showwarning(
+                "Logging Stopped", 
+                f"Logging automatically stopped because the memory limit of {limit} messages was reached.\n\n"
+                "You can increase this limit in File -> Settings."
+            )
 
     def rx_loop(self):
         while self.running and self.client:
             msg = self.client.read_message()
             if msg:
-                # msg is a simple object with command, data, can_id, dlc, frame_data
-                
                 direction = "Unknown"
                 if msg.command == CMD_CAN_MSG_FROM_SYSTEM:
                     direction = "SYS->ECU"
                 elif msg.command == CMD_CAN_MSG_FROM_COMPUTER:
                     direction = "ECU->SYS"
                 
-                # Update UI via Panel - MUST be done in Main Thread
                 if hasattr(msg, 'can_id'):
-                    # Use root.after to schedule the update on the main thread
-                    self.root.after(0, lambda t=time.time(), d=direction, i=msg.can_id, f=msg.frame_data: 
-                                    self.rev_eng_panel.on_message(t, d, i, f))
+                    # Update base payload for mapped controls (Passive mode snapshot)
+                    hex_id = hex(msg.can_id)
+                    mappings = self.profile_manager.data.get("controls_mapping", {})
+                    for ctrl_name, mapping in mappings.items():
+                        if mapping.get("can_id") == msg.can_id:
+                            # Update the snapshot for future injection
+                            self.profile_manager.update_control_base_payload(ctrl_name, msg.frame_data.hex())
+
+                    # Schedule updates on the main thread
+                    self.root.after(0, self.dispatch_message, time.time(), direction, msg.can_id, msg.frame_data)
+
+    def dispatch_message(self, timestamp, direction, can_id, frame_data):
+        # Check if limit was reached during dispatch
+        if self.logging_active and self.rev_eng_panel.recorder.limit_reached:
+            self.force_stop_logging_due_to_limit()
+            return
+
+        # Dispatch to all interested panels
+        self.rev_eng_panel.on_message(timestamp, direction, can_id, frame_data)
+        if self.obd2_panel:
+            self.obd2_panel.on_message(can_id, frame_data)
+        self.cockpit_panel.on_message(can_id, frame_data)
 
 if __name__ == "__main__":
     root = tk.Tk()
