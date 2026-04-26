@@ -1,0 +1,113 @@
+// led_control.c
+#define _GNU_SOURCE
+
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#define PATH_LEN 256
+
+static int write_file(const char *path, const char *value)
+{
+    int fd = open(path, O_WRONLY | O_CLOEXEC);
+    if (fd < 0) {
+        fprintf(stderr, "open(%s) failed: %s\n", path, strerror(errno));
+        return -1;
+    }
+
+    size_t len = strlen(value);
+    ssize_t written = write(fd, value, len);
+
+    if (written < 0) {
+        fprintf(stderr, "write(%s) failed: %s\n", path, strerror(errno));
+        close(fd);
+        return -1;
+    }
+
+    if ((size_t)written != len) {
+        fprintf(stderr, "write(%s) incomplete\n", path);
+        close(fd);
+        return -1;
+    }
+
+    close(fd);
+    return 0;
+}
+
+static int led_write_attr(const char *led, const char *attr, const char *value)
+{
+    char path[PATH_LEN];
+
+    int n = snprintf(path, sizeof(path), "/sys/class/leds/%s/%s", led, attr);
+    if (n < 0 || n >= (int)sizeof(path)) {
+        fprintf(stderr, "path too long\n");
+        return -1;
+    }
+
+    return write_file(path, value);
+}
+
+static int led_take_control(const char *led)
+{
+    return led_write_attr(led, "trigger", "none\n");
+}
+
+static int led_on(const char *led)
+{
+    return led_write_attr(led, "brightness", "1\n");
+}
+
+static int led_off(const char *led)
+{
+    return led_write_attr(led, "brightness", "0\n");
+}
+
+static int led_timer(const char *led, int on_ms, int off_ms)
+{
+    char buf[32];
+
+    if (led_write_attr(led, "trigger", "timer\n") < 0)
+        return -1;
+
+    snprintf(buf, sizeof(buf), "%d\n", on_ms);
+    if (led_write_attr(led, "delay_on", buf) < 0)
+        return -1;
+
+    snprintf(buf, sizeof(buf), "%d\n", off_ms);
+    if (led_write_attr(led, "delay_off", buf) < 0)
+        return -1;
+
+    return 0;
+}
+
+int main(void)
+{
+    const char *ACT = "ACT";
+    const char *PWR = "PWR";
+
+    // קח שליטה ידנית מהקרנל
+    if (led_take_control(ACT) < 0)
+        return 1;
+
+    if (led_take_control(PWR) < 0)
+        return 1;
+
+    // דוגמה: ACT דולק, PWR כבוי
+    led_on(ACT);
+    led_off(PWR);
+
+    sleep(2);
+
+    // דוגמה: ACT מהבהב
+    led_timer(ACT, 200, 800);
+
+    sleep(10);
+
+    // חזרה לשליטה ידנית וכיבוי
+    led_take_control(ACT);
+    led_off(ACT);
+
+    return 0;
+}
