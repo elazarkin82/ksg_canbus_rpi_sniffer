@@ -15,9 +15,113 @@ static const char* DEFAULT_PARAMS =
     "external_service_port=9095\n"
     "external_client_port=9096\n"; // Added default client port
 
+struct CanInterfaceConfig
+{
+    char interfaceName[64];
+    char usbId[64];
+    char ledName[64];
+};
+
+static inline void parseCanConfig(const char* rawConfig, CanInterfaceConfig* outConfig)
+{
+    outConfig->interfaceName[0] = '\0';
+    outConfig->usbId[0] = '\0';
+    outConfig->ledName[0] = '\0';
+
+    if (!rawConfig || strlen(rawConfig) == 0)
+    {
+        return;
+    }
+
+    const char* firstHash = strchr(rawConfig, '#');
+
+    // Format: can_interface_name (No # found)
+    if (!firstHash)
+    {
+        strncpy(outConfig->interfaceName, rawConfig, sizeof(outConfig->interfaceName) - 1);
+        outConfig->interfaceName[sizeof(outConfig->interfaceName) - 1] = '\0';
+        return;
+    }
+
+    const char* secondHash = strchr(firstHash + 1, '#');
+
+    // Format: invalid (only 1 # found). We fall back to treating it as just interface name.
+    if (!secondHash)
+    {
+        strncpy(outConfig->interfaceName, rawConfig, sizeof(outConfig->interfaceName) - 1);
+        outConfig->interfaceName[sizeof(outConfig->interfaceName) - 1] = '\0';
+        return;
+    }
+
+    // Format: can_interface_name#usb_id#led_name
+    size_t interfaceLen = firstHash - rawConfig;
+    if (interfaceLen > sizeof(outConfig->interfaceName) - 1)
+    {
+        interfaceLen = sizeof(outConfig->interfaceName) - 1;
+    }
+    strncpy(outConfig->interfaceName, rawConfig, interfaceLen);
+    outConfig->interfaceName[interfaceLen] = '\0';
+
+    size_t usbLen = secondHash - (firstHash + 1);
+    if (usbLen > sizeof(outConfig->usbId) - 1)
+    {
+        usbLen = sizeof(outConfig->usbId) - 1;
+    }
+    strncpy(outConfig->usbId, firstHash + 1, usbLen);
+    outConfig->usbId[usbLen] = '\0';
+
+    strncpy(outConfig->ledName, secondHash + 1, sizeof(outConfig->ledName) - 1);
+    outConfig->ledName[sizeof(outConfig->ledName) - 1] = '\0';
+}
+
+class UsbWatchdog
+{
+public:
+    UsbWatchdog(const char* canInterfaceName, const char* usbUniqName) : m_running(false)
+    {
+        strncpy(m_canInterfaceName, canInterfaceName ? canInterfaceName : "", sizeof(m_canInterfaceName) - 1);
+        m_canInterfaceName[sizeof(m_canInterfaceName) - 1] = '\0';
+
+        strncpy(m_usbUniqName, usbUniqName ? usbUniqName : "", sizeof(m_usbUniqName) - 1);
+        m_usbUniqName[sizeof(m_usbUniqName) - 1] = '\0';
+    }
+    ~UsbWatchdog()
+    {
+        stop();
+    }
+
+    void start()
+    {
+        if (m_running) return;
+
+        if (strlen(m_usbUniqName) == 0) return; // No USB ID to monitor
+
+        m_running = true;
+
+        // TODO: Add implementation for the watchdog thread
+        // TODO: Add active interface restart logic when hardware is plugged/unplugged
+    }
+
+    void stop()
+    {
+        m_running = false;
+
+        // TODO: Stop and join the watchdog thread
+    }
+
+private:
+    char m_canInterfaceName[64];
+    char m_usbUniqName[64];
+    bool m_running;
+};
+
+// --- MainService Implementation ---
+
 MainService::MainService(const char* configPath)
     : m_params(nullptr),
       m_sniffer(nullptr),
+      m_systemWatchdog(nullptr),
+      m_computerWatchdog(nullptr),
       m_running(false),
       m_restartRequested(false)
 {
@@ -101,6 +205,8 @@ void MainService::onSystemCommand(uint32_t cmd, const uint8_t* data, size_t len)
             delete[] buffer;
 
             // Trigger restart
+            // TODO: Watchdogs will be destroyed and recreated here when destroySniffer()/createSniffer() is called.
+            // Need to ensure watchdogs cleanly shut down and release hardware resources.
             m_restartRequested = true;
         }
     }
@@ -115,31 +221,51 @@ void MainService::createSniffer()
 #endif
 
     sniffer::SnifferParams params;
+    const char* sysNameRaw = m_params->get("car_system_can_name");
+    const char* compNameRaw = m_params->get("car_computer_can_name");
+    CanInterfaceConfig sysConfig, compConfig;
+    int servicePort, clientPort;
 
-    const char* sysName = m_params->get("car_system_can_name");
-    const char* compName = m_params->get("car_computer_can_name");
-    int servicePort = m_params->getInt("external_service_port", 9095);
-    int clientPort = m_params->getInt("external_client_port", 9096);
+    parseCanConfig(sysNameRaw ? sysNameRaw : "vcan0", &sysConfig);
+    parseCanConfig(compNameRaw ? compNameRaw : "vcan1", &compConfig);
 
-    strncpy(params.car_system_can_name, sysName ? sysName : "vcan0", 16);
-    strncpy(params.car_computer_can_name, compName ? compName : "vcan1", 16);
+    // Construct interface#led for Sniffer
+    snprintf(params.car_system_can_name, sizeof(params.car_system_can_name), "%s#%s", sysConfig.interfaceName, sysConfig.ledName);
+    snprintf(params.car_computer_can_name, sizeof(params.car_computer_can_name), "%s#%s", compConfig.interfaceName, compConfig.ledName);
+
+    servicePort = m_params->getInt("external_service_port", 9095);
+    clientPort = m_params->getInt("external_client_port", 9096);
+
     params.external_service_port = (uint16_t)servicePort;
     params.external_client_port = (uint16_t)clientPort;
 
     printf("[MainService] Creating Sniffer with params:\n");
-    printf("  System CAN: %s\n", params.car_system_can_name);
-    printf("  Computer CAN: %s\n", params.car_computer_can_name);
+    printf("  System CAN config: %s (Watchdog USB: %s)\n", params.car_system_can_name, sysConfig.usbId);
+    printf("  Computer CAN config: %s (Watchdog USB: %s)\n", params.car_computer_can_name, compConfig.usbId);
     printf("  External Service Port (Listen): %d\n", params.external_service_port);
     printf("  External Client Port (Send): %d\n", params.external_client_port);
 
     m_sniffer = new sniffer::Sniffer(params);
     m_sniffer->setSystemCallback(this);
 
+    // Initialize watchdogs if needed
+    // TODO: When Sniffer is decoupled, the watchdogs should be responsible for bringing up the interfaces and injecting them.
+    if (strlen(sysConfig.usbId) > 0)
+    {
+        m_systemWatchdog = new UsbWatchdog(sysConfig.interfaceName, sysConfig.usbId);
+        m_systemWatchdog->start();
+    }
+
+    if (strlen(compConfig.usbId) > 0)
+    {
+        m_computerWatchdog = new UsbWatchdog(compConfig.interfaceName, compConfig.usbId);
+        m_computerWatchdog->start();
+    }
+
     if (!m_sniffer->start())
     {
         fprintf(stderr, "[MainService] Failed to start Sniffer!\n");
-        delete m_sniffer;
-        m_sniffer = nullptr;
+        destroySniffer(); // This will clean up the watchdogs too
         // Wait a bit before retrying to avoid busy loop
         std::this_thread::sleep_for(std::chrono::seconds(2));
     }
@@ -147,6 +273,20 @@ void MainService::createSniffer()
 
 void MainService::destroySniffer()
 {
+    if (m_systemWatchdog)
+    {
+        m_systemWatchdog->stop();
+        delete m_systemWatchdog;
+        m_systemWatchdog = nullptr;
+    }
+
+    if (m_computerWatchdog)
+    {
+        m_computerWatchdog->stop();
+        delete m_computerWatchdog;
+        m_computerWatchdog = nullptr;
+    }
+
     if (m_sniffer)
     {
 #ifdef DEBUG

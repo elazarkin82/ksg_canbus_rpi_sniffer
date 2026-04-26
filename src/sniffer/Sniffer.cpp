@@ -51,7 +51,6 @@ namespace FilterEngine
     {
         std::lock_guard<std::mutex> lock(filter_mutex);
         size_t num_rules;
-        int i;
 
         // 1. Reset
         init_internal();
@@ -85,7 +84,7 @@ namespace FilterEngine
             });
 
         // 4. Build lookup table
-        for (i = 0; i < rules_count; ++i)
+        for (int i = 0; i < rules_count; ++i)
         {
             uint32_t id = rules_ptr[i].can_id & 0x7FF; // Mask priority bits
             if (id >= 2048) continue;
@@ -174,6 +173,30 @@ namespace FilterEngine
 } // namespace FilterEngine
 
 
+void Sniffer::extractInterfaceName(const char* fullConfig, char* outInterfaceName, size_t outSize)
+{
+    const char* hashPos;
+    size_t copyLen;
+
+    outInterfaceName[0] = '\0';
+    if (!fullConfig || outSize == 0) return;
+
+    hashPos = strchr(fullConfig, '#');
+    if (hashPos)
+    {
+        copyLen = hashPos - fullConfig;
+        if (copyLen >= outSize) copyLen = outSize - 1;
+        strncpy(outInterfaceName, fullConfig, copyLen);
+        outInterfaceName[copyLen] = '\0';
+    }
+    else
+    {
+        strncpy(outInterfaceName, fullConfig, outSize - 1);
+        outInterfaceName[outSize - 1] = '\0';
+    }
+}
+
+
 Sniffer::Sniffer(const SnifferParams& params)
     : m_systemListener(*this, Sniffer::SOURCE_CAR_SYSTEM),
       m_computerListener(*this, Sniffer::SOURCE_CAR_COMPUTER),
@@ -183,9 +206,23 @@ Sniffer::Sniffer(const SnifferParams& params)
       m_lastExternalMsgTime(std::chrono::steady_clock::now()),
       m_systemCallback(nullptr)
 {
+    char sysInterfaceName[64];
+    char compInterfaceName[64];
+
+    // Save raw config strings
+    strncpy(m_systemCanConfig, params.car_system_can_name, sizeof(m_systemCanConfig) - 1);
+    m_systemCanConfig[sizeof(m_systemCanConfig) - 1] = '\0';
+
+    strncpy(m_computerCanConfig, params.car_computer_can_name, sizeof(m_computerCanConfig) - 1);
+    m_computerCanConfig[sizeof(m_computerCanConfig) - 1] = '\0';
+
+    // Parse out just the interface name
+    extractInterfaceName(m_systemCanConfig, sysInterfaceName, sizeof(sysInterfaceName));
+    extractInterfaceName(m_computerCanConfig, compInterfaceName, sizeof(compInterfaceName));
+
     // Initialize CAN interfaces
-    m_carSystemCan = new canbus_communication::ObdCanbusCommunication(m_systemListener, params.car_system_can_name);
-    m_carComputerCan = new canbus_communication::ObdCanbusCommunication(m_computerListener, params.car_computer_can_name);
+    m_carSystemCan = new canbus_communication::ObdCanbusCommunication(m_systemListener, sysInterfaceName);
+    m_carComputerCan = new canbus_communication::ObdCanbusCommunication(m_computerListener, compInterfaceName);
 
     // Initialize External Service (UDP)
     // Use external_client_port as the remote port (target)

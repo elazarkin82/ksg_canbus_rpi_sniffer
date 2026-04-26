@@ -16,8 +16,8 @@ namespace sniffer
 
 struct SnifferParams
 {
-    char car_system_can_name[16];
-    char car_computer_can_name[16];
+    char car_system_can_name[64];
+    char car_computer_can_name[64];
     uint16_t external_service_port;
     uint16_t external_client_port; // New parameter for target port
 };
@@ -64,6 +64,11 @@ private:
     void handleCanData(Source source, const uint8_t* data, size_t length);
     void watchdogLoop();
     void resetToDefault();
+    void extractInterfaceName(const char* fullConfig, char* outInterfaceName, size_t outSize);
+
+    // Configuration strings
+    char m_systemCanConfig[64];
+    char m_computerCanConfig[64];
 
     // Communication objects
     canbus_communication::ObdCanbusCommunication* m_carSystemCan;

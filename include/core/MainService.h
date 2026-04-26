@@ -8,6 +8,8 @@
 namespace core
 {
 
+class UsbWatchdog; // Forward declaration
+
 class MainService : public sniffer::ISystemCallback
 {
 public:
@@ -24,6 +26,9 @@ private:
     char m_configPath[256];
     utils::Params* m_params;
     sniffer::Sniffer* m_sniffer;
+
+    UsbWatchdog* m_systemWatchdog;
+    UsbWatchdog* m_computerWatchdog;
 
     std::atomic<bool> m_running;
     std::atomic<bool> m_restartRequested;
