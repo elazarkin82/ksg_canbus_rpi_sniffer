@@ -55,6 +55,7 @@ public:
     CommunicationObj(ICommunicationListener& listener, size_t bufferSize = 64 * 1024)
         : m_listener(listener),
           m_running(false),
+          m_reconnectMode(false),
           m_bufferSize(bufferSize),
           m_cacheManager(NULL)
     {
@@ -62,7 +63,7 @@ public:
 
     virtual ~CommunicationObj()
     {
-        stop();
+        stop_reconnectable_mode();
         if (m_cacheManager)
         {
             delete m_cacheManager;
@@ -111,10 +112,6 @@ public:
     {
         {
             std::lock_guard<std::mutex> lock(m_mutex);
-            if (!m_running)
-            {
-                return;
-            }
             m_running = false;
         }
 
@@ -135,6 +132,31 @@ public:
         }
 
         close();
+    }
+
+    /**
+     * Starts the reconnectable mode. A supervisor thread will monitor the connection
+     * and automatically try to restart it if it drops.
+     */
+    void start_reconnectable_mode()
+    {
+        if (m_reconnectMode) return;
+
+        m_reconnectMode = true;
+        m_supervisorThread = std::thread(&CommunicationObj::supervisorThreadLoop, this);
+    }
+
+    /**
+     * Stops the reconnectable mode and gracefully closes the connection.
+     */
+    void stop_reconnectable_mode()
+    {
+        m_reconnectMode = false;
+        if (m_supervisorThread.joinable())
+        {
+            m_supervisorThread.join();
+        }
+        stop();
     }
 
     /**
@@ -331,6 +353,30 @@ private:
         std::condition_variable m_cond;
     };
 
+    // --- Supervisor Thread: Monitors and reconnects if connection drops ---
+    void supervisorThreadLoop()
+    {
+        while (m_reconnectMode)
+        {
+            if (!m_running)
+            {
+                // Connection is down (either never started, or dropped).
+                stop(); // Ensure completely clean state (join dead threads, release descriptors)
+
+                if (!start())
+                {
+                    // Failed to start/reconnect, wait before retry
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                }
+            }
+            else
+            {
+                // Running fine, just wait and monitor
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            }
+        }
+    }
+
     // --- RX Thread: Reads from Hardware and pushes to CacheManager ---
     void rxThreadLoop()
     {
@@ -359,7 +405,10 @@ private:
                 if (m_running)
                 {
                     m_listener.onError(bytesRead);
-                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+                    // Critical error (e.g. disconnected socket). Drop the running flag to trigger reconnect.
+                    m_running = false;
+                    break;
                 }
             }
         }
@@ -380,8 +429,11 @@ private:
 
     std::thread m_rxThread;
     std::thread m_workerThread;
+    std::thread m_supervisorThread;
 
     std::atomic<bool> m_running;
+    std::atomic<bool> m_reconnectMode;
+
     std::mutex m_mutex; // Protects general state
 
     size_t m_bufferSize;
