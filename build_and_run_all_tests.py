@@ -96,7 +96,7 @@ def create_release(debug_mode=False, debug_msg_mode=False):
         if not os.path.exists(build_rpi_dir):
             os.makedirs(build_rpi_dir)
         
-        cmake_cmd = f"cmake -DCMAKE_TOOLCHAIN_FILE={toolchain_file} {project_root}"
+        cmake_cmd = f"cmake -DCMAKE_TOOLCHAIN_FILE={toolchain_file} -DRPI_BUILD=1 {project_root}"
         if debug_mode:
             cmake_cmd += " -DCMAKE_BUILD_TYPE=Debug -DDEBUG=1"
         else:
@@ -110,7 +110,7 @@ def create_release(debug_mode=False, debug_msg_mode=False):
         # Use project_root instead of ..
         if run_command(cmake_cmd, cwd=build_rpi_dir) == 0:
             # Build all required targets for RPi
-            build_targets = "sniffer_service car_system_emulator car_computer_emulator"
+            build_targets = "sniffer_service car_system_emulator car_computer_emulator led_controller_tester"
             if run_command(f"make {build_targets}", cwd=build_rpi_dir) == 0:
                 # Copy all targets
                 for target in build_targets.split():

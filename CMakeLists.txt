@@ -51,6 +51,12 @@ target_link_libraries(udp_canbus_tester Threads::Threads)
 add_executable(params_tester tests/params_tester.cpp)
 target_link_libraries(params_tester Threads::Threads)
 
+if(RPI_BUILD)
+    add_executable(led_controller_tester tests/ledControlerUtilsTester.cpp ${LIB_SOURCES})
+    target_link_libraries(led_controller_tester Threads::Threads)
+    message(STATUS "RPI_BUILD enabled - Building led_controller_tester")
+endif()
+
 # --- Emulators ---
 
 # Car System Emulator (Standalone Executable)

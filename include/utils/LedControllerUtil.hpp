@@ -63,6 +63,11 @@ public:
         return 0;
     }
 
+    int setTrigger(const char* ledName, const char* trigger)
+    {
+        return writeAttr(ledName, "trigger", trigger);
+    }
+
 private:
     LedControllerUtil() {}
     ~LedControllerUtil() {}
