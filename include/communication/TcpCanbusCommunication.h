@@ -30,6 +30,7 @@ protected:
     // This class listens to its own base TcpCommunication to parse the protocol.
     virtual void onDataReceived(const uint8_t* data, size_t length) override;
     virtual void onError(int32_t errorCode) override;
+    virtual void onStatusChanged(base::CommunicationStatus status) override;
 
 private:
     void processBuffer(const uint8_t* data, size_t length);

@@ -27,6 +27,7 @@ protected:
     // --- ICommunicationListener Implementation (Internal) ---
     virtual void onDataReceived(const uint8_t* data, size_t length) override;
     virtual void onError(int32_t errorCode) override;
+    virtual void onStatusChanged(base::CommunicationStatus status) override;
 
     // Override write to add debug prints
     virtual int32_t write(const uint8_t* data, size_t length) override;

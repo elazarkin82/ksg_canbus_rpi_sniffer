@@ -153,6 +153,8 @@ public:
         std::cerr << "[Client] Error: " << errorCode << std::endl;
     }
 
+    void onStatusChanged(base::CommunicationStatus status) override {}
+
     void reset() {
         m_receivedCount = 0;
         m_processingDelayMs = 0;

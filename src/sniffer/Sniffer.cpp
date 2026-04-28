@@ -346,13 +346,12 @@ void Sniffer::CanListener::onDataReceived(const uint8_t* data, size_t length)
 
 void Sniffer::CanListener::onError(int32_t errorCode)
 {
-    const char* sourceName = "UNKNOWN";
-    switch(m_source) {
-        case Sniffer::SOURCE_CAR_SYSTEM: sourceName = "CAR_SYSTEM"; break;
-        case Sniffer::SOURCE_CAR_COMPUTER: sourceName = "CAR_COMPUTER"; break;
-        default: break;
-    }
-    fprintf(stderr, "[Sniffer] CAN Read Error on %s interface. Error code: %d\n", sourceName, errorCode);
+    // nothing to do
+}
+
+void Sniffer::CanListener::onStatusChanged(base::CommunicationStatus status)
+{
+    // TODO - update dedicated led status if needed
 }
 
 void Sniffer::handleCanData(Source source, const uint8_t* data, size_t length)

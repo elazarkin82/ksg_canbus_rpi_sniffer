@@ -33,6 +33,11 @@ void TcpCanbusCommunication::onError(int32_t errorCode)
     m_targetListener.onError(errorCode);
 }
 
+void TcpCanbusCommunication::onStatusChanged(base::CommunicationStatus status)
+{
+    m_targetListener.onStatusChanged(status);
+}
+
 void TcpCanbusCommunication::processBuffer(const uint8_t* data, size_t length)
 {
 #ifdef DEBUG

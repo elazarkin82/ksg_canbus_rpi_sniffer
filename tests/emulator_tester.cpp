@@ -40,6 +40,8 @@ public:
         std::cerr << "Error: " << errorCode << std::endl;
     }
 
+    void onStatusChanged(base::CommunicationStatus status) override {}
+
     void reset(uint8_t expectedPid = 0) {
         m_broadcastReceived = false;
         m_responseReceived = false;

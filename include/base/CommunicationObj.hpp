@@ -16,6 +16,13 @@
 namespace base
 {
 
+enum CommunicationStatus {
+    STATUS_DISCONNECTED = 0,
+    STATUS_CONNECTING,
+    STATUS_CONNECTED,
+    STATUS_ERROR
+};
+
 class CommunicationObj;
 
 /**
@@ -36,6 +43,11 @@ public:
      * Called when an error occurs.
      */
     virtual void onError(int32_t errorCode) = 0;
+
+    /**
+     * Called when the connection status changes.
+     */
+    virtual void onStatusChanged(CommunicationStatus status) = 0;
 };
 
 /**
@@ -96,6 +108,8 @@ public:
 
         m_running = true;
 
+        m_listener.onStatusChanged(STATUS_CONNECTED);
+
         // Start RX thread (Hardware -> Buffer)
         m_rxThread = std::thread(&CommunicationObj::rxThreadLoop, this);
 
@@ -110,9 +124,16 @@ public:
      */
     void stop()
     {
+        bool wasRunning = false;
         {
             std::lock_guard<std::mutex> lock(m_mutex);
+            wasRunning = m_running;
             m_running = false;
+        }
+
+        if (wasRunning)
+        {
+            m_listener.onStatusChanged(STATUS_DISCONNECTED);
         }
 
         // Wake up worker thread so it can exit
@@ -363,6 +384,8 @@ private:
                 // Connection is down (either never started, or dropped).
                 stop(); // Ensure completely clean state (join dead threads, release descriptors)
 
+                m_listener.onStatusChanged(STATUS_CONNECTING);
+
                 if (!start())
                 {
                     // Failed to start/reconnect, wait before retry
@@ -405,6 +428,7 @@ private:
                 if (m_running)
                 {
                     m_listener.onError(bytesRead);
+                    m_listener.onStatusChanged(STATUS_ERROR);
 
                     // Critical error (e.g. disconnected socket). Drop the running flag to trigger reconnect.
                     m_running = false;

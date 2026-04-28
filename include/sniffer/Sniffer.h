@@ -55,6 +55,7 @@ private:
 
         virtual void onDataReceived(const uint8_t* data, size_t length) override;
         virtual void onError(int32_t errorCode) override;
+        virtual void onStatusChanged(base::CommunicationStatus status) override;
 
     private:
         Sniffer& m_parent;
@@ -62,6 +63,7 @@ private:
     };
 
     void handleCanData(Source source, const uint8_t* data, size_t length);
+    void handleStatusChanged(Source source, base::CommunicationStatus status);
     void watchdogLoop();
     void resetToDefault();
     void extractInterfaceName(const char* fullConfig, char* outInterfaceName, size_t outSize);

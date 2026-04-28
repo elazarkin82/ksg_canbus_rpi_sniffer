@@ -145,6 +145,11 @@ public:
         fprintf(stderr, "Client Error: %d\n", errorCode);
     }
 
+    virtual void onStatusChanged(base::CommunicationStatus status) override
+    {
+        // Internal status tracking not required for Python SDK yet
+    }
+
     // --- ICommandListener (V1 Commands) ---
     virtual void onCommandReceived(uint32_t command, const uint8_t* data, size_t length) override
     {
