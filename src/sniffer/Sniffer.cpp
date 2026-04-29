@@ -2,6 +2,7 @@
 #include "communication/CanbusProtocol.h"
 #include "canbus_communication/ObdCanbusCommunication.h"
 #include "communication/UdpCanbusCommunication.h"
+#include "utils/LedControllerUtil.hpp"
 
 #include <stdio.h>
 #include <string.h>
@@ -10,6 +11,44 @@
 
 namespace sniffer
 {
+
+// --- Helper Functions (Internal) ---
+
+static inline void extractInterfaceName(const char* fullConfig, char* outInterfaceName, size_t outSize)
+{
+    const char* hashPos;
+    size_t copyLen;
+
+    if (!fullConfig || !outInterfaceName || outSize == 0) return;
+    outInterfaceName[0] = '\0';
+
+    hashPos = strchr(fullConfig, '#');
+    if (hashPos)
+    {
+        copyLen = hashPos - fullConfig;
+        if (copyLen >= outSize) copyLen = outSize - 1;
+        memcpy(outInterfaceName, fullConfig, copyLen);
+        outInterfaceName[copyLen] = '\0';
+    }
+    else
+    {
+        snprintf(outInterfaceName, outSize, "%s", fullConfig);
+    }
+}
+
+static inline void extractLedName(const char* fullConfig, char* outLedName, size_t outSize)
+{
+    const char* hashPos;
+
+    if (!fullConfig || !outLedName || outSize == 0) return;
+    outLedName[0] = '\0';
+
+    hashPos = strchr(fullConfig, '#');
+    if (hashPos && *(hashPos + 1) != '\0')
+    {
+        snprintf(outLedName, outSize, "%s", hashPos + 1);
+    }
+}
 
 // --- Filter Engine ---
 namespace FilterEngine
@@ -172,28 +211,6 @@ namespace FilterEngine
 } // namespace FilterEngine
 
 
-void Sniffer::extractInterfaceName(const char* fullConfig, char* outInterfaceName, size_t outSize)
-{
-    const char* hashPos;
-    size_t copyLen;
-
-    outInterfaceName[0] = '\0';
-    if (!fullConfig || outSize == 0) return;
-
-    hashPos = strchr(fullConfig, '#');
-    if (hashPos)
-    {
-        copyLen = hashPos - fullConfig;
-        if (copyLen >= outSize) copyLen = outSize - 1;
-        snprintf(outInterfaceName, copyLen + 1, "%s", fullConfig);
-    }
-    else
-    {
-        snprintf(outInterfaceName, outSize, "%s", fullConfig);
-    }
-}
-
-
 Sniffer::Sniffer(const SnifferParams& params)
     : m_systemListener(*this, Sniffer::SOURCE_CAR_SYSTEM),
       m_computerListener(*this, Sniffer::SOURCE_CAR_COMPUTER),
@@ -205,6 +222,8 @@ Sniffer::Sniffer(const SnifferParams& params)
 {
     char sysInterfaceName[64];
     char compInterfaceName[64];
+    char sysLedName[64];
+    char compLedName[64];
 
     // Save raw config strings
     snprintf(m_systemCanConfig, sizeof(m_systemCanConfig), "%s", params.car_system_can_name);
@@ -213,6 +232,13 @@ Sniffer::Sniffer(const SnifferParams& params)
     // Parse out just the interface name
     extractInterfaceName(m_systemCanConfig, sysInterfaceName, sizeof(sysInterfaceName));
     extractInterfaceName(m_computerCanConfig, compInterfaceName, sizeof(compInterfaceName));
+
+    // Parse out LED names if available
+    extractLedName(m_systemCanConfig, sysLedName, sizeof(sysLedName));
+    extractLedName(m_computerCanConfig, compLedName, sizeof(compLedName));
+
+    // Check if LEDs exist
+    m_is_leds_feature_on = utils::LedControllerUtil::getInstance().exists(sysLedName) || utils::LedControllerUtil::getInstance().exists(compLedName);
 
     // Initialize CAN interfaces
     m_carSystemCan = new canbus_communication::ObdCanbusCommunication(m_systemListener, sysInterfaceName);

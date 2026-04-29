@@ -24,6 +24,18 @@ public:
     LedControllerUtil(const LedControllerUtil&) = delete;
     LedControllerUtil& operator=(const LedControllerUtil&) = delete;
 
+    bool exists(const char* ledName)
+    {
+        char path[256];
+        if (!ledName || ledName[0] == '\0')
+        {
+            return false;
+        }
+
+        snprintf(path, sizeof(path), "/sys/class/leds/%s", ledName);
+        return access(path, F_OK) == 0;
+    }
+
     int takeControl(const char* ledName)
     {
         return writeAttr(ledName, "trigger", "none\n");

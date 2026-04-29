@@ -66,7 +66,6 @@ private:
     void handleStatusChanged(Source source, base::CommunicationStatus status);
     void watchdogLoop();
     void resetToDefault();
-    void extractInterfaceName(const char* fullConfig, char* outInterfaceName, size_t outSize);
 
     // Configuration strings
     char m_systemCanConfig[64];
@@ -91,6 +90,8 @@ private:
 
     std::thread m_watchdogThread;
     std::mutex m_mutex; // Protects shared state
+
+    bool m_is_leds_feature_on;
 };
 
 } // namespace sniffer
