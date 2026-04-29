@@ -70,6 +70,8 @@ private:
     // Configuration strings
     char m_systemCanConfig[64];
     char m_computerCanConfig[64];
+    char m_systemLedName[64];
+    char m_computerLedName[64];
 
     // Communication objects
     canbus_communication::ObdCanbusCommunication* m_carSystemCan;

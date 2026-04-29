@@ -218,12 +218,14 @@ Sniffer::Sniffer(const SnifferParams& params)
       m_running(false),
       m_externalServiceLogging(false),
       m_lastExternalMsgTime(std::chrono::steady_clock::now()),
-      m_systemCallback(nullptr)
+      m_systemCallback(nullptr),
+      m_is_leds_feature_on(false)
 {
     char sysInterfaceName[64];
     char compInterfaceName[64];
-    char sysLedName[64];
-    char compLedName[64];
+    bool sysLedExists;
+    bool compLedExists;
+    utils::LedControllerUtil& ledUtil = utils::LedControllerUtil::getInstance();
 
     // Save raw config strings
     snprintf(m_systemCanConfig, sizeof(m_systemCanConfig), "%s", params.car_system_can_name);
@@ -233,19 +235,33 @@ Sniffer::Sniffer(const SnifferParams& params)
     extractInterfaceName(m_systemCanConfig, sysInterfaceName, sizeof(sysInterfaceName));
     extractInterfaceName(m_computerCanConfig, compInterfaceName, sizeof(compInterfaceName));
 
-    // Parse out LED names if available
-    extractLedName(m_systemCanConfig, sysLedName, sizeof(sysLedName));
-    extractLedName(m_computerCanConfig, compLedName, sizeof(compLedName));
+    // Parse out LED names
+    extractLedName(m_systemCanConfig, m_systemLedName, sizeof(m_systemLedName));
+    extractLedName(m_computerCanConfig, m_computerLedName, sizeof(m_computerLedName));
 
     // Check if LEDs exist
-    m_is_leds_feature_on = utils::LedControllerUtil::getInstance().exists(sysLedName) || utils::LedControllerUtil::getInstance().exists(compLedName);
+    sysLedExists = ledUtil.exists(m_systemLedName);
+    compLedExists = ledUtil.exists(m_computerLedName);
+
+    m_is_leds_feature_on = sysLedExists || compLedExists;
+
+    if (m_is_leds_feature_on)
+    {
+        if (sysLedExists)
+        {
+            ledUtil.takeControl(m_systemLedName);
+        }
+        if (compLedExists)
+        {
+            ledUtil.takeControl(m_computerLedName);
+        }
+    }
 
     // Initialize CAN interfaces
     m_carSystemCan = new canbus_communication::ObdCanbusCommunication(m_systemListener, sysInterfaceName);
     m_carComputerCan = new canbus_communication::ObdCanbusCommunication(m_computerListener, compInterfaceName);
 
     // Initialize External Service (UDP)
-    // Use external_client_port as the remote port (target)
     m_externalService = new communication::UdpCanbusCommunication(m_externalListener, "0.0.0.0", params.external_client_port, params.external_service_port);
     m_externalService->setCommandListener(this);
 
@@ -366,12 +382,45 @@ void Sniffer::CanListener::onDataReceived(const uint8_t* data, size_t length)
 
 void Sniffer::CanListener::onError(int32_t errorCode)
 {
-    // nothing to do
+    onStatusChanged(base::STATUS_ERROR);
 }
 
 void Sniffer::CanListener::onStatusChanged(base::CommunicationStatus status)
 {
-    // TODO - update dedicated led status if needed
+    m_parent.handleStatusChanged(m_source, status);
+}
+
+void Sniffer::handleStatusChanged(Source source, base::CommunicationStatus status)
+{
+    const char* ledName;
+    utils::LedControllerUtil& ledUtil = utils::LedControllerUtil::getInstance();
+
+    if (!m_is_leds_feature_on) return;
+
+    ledName = (source == SOURCE_CAR_SYSTEM) ? m_systemLedName : m_computerLedName;
+
+    if (!ledUtil.exists(ledName)) return;
+
+    switch (status)
+    {
+    case base::STATUS_CONNECTED:
+        // Healthy: 1000ms ON / 1000ms OFF
+        ledUtil.setTimer(ledName, 1000, 1000);
+        break;
+
+    case base::STATUS_DISCONNECTED:
+        // Error Type 1: 200ms ON / 1000ms OFF
+        ledUtil.setTimer(ledName, 200, 1000);
+        break;
+
+    case base::STATUS_ERROR:
+        // Error Type 2: 1000ms ON / 200ms OFF
+        ledUtil.setTimer(ledName, 1000, 200);
+        break;
+
+    default:
+        break;
+    }
 }
 
 void Sniffer::handleCanData(Source source, const uint8_t* data, size_t length)
