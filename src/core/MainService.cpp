@@ -4,6 +4,8 @@
 #include <unistd.h>
 #include <thread>
 #include <chrono>
+#include <atomic>
+#include <dirent.h>
 
 namespace core
 {
@@ -13,7 +15,7 @@ static const char* DEFAULT_PARAMS =
     "car_system_can_name=vcan0\n"
     "car_computer_can_name=vcan1\n"
     "external_service_port=9095\n"
-    "external_client_port=9096\n"; // Added default client port
+    "external_client_port=9096\n";
 
 struct CanInterfaceConfig
 {
@@ -24,6 +26,11 @@ struct CanInterfaceConfig
 
 static inline void parseCanConfig(const char* rawConfig, CanInterfaceConfig* outConfig)
 {
+    const char* firstHash;
+    const char* secondHash;
+    size_t interfaceLen;
+    size_t usbLen;
+
     outConfig->interfaceName[0] = '\0';
     outConfig->usbId[0] = '\0';
     outConfig->ledName[0] = '\0';
@@ -33,7 +40,7 @@ static inline void parseCanConfig(const char* rawConfig, CanInterfaceConfig* out
         return;
     }
 
-    const char* firstHash = strchr(rawConfig, '#');
+    firstHash = strchr(rawConfig, '#');
 
     // Format: can_interface_name (No # found)
     if (!firstHash)
@@ -43,7 +50,7 @@ static inline void parseCanConfig(const char* rawConfig, CanInterfaceConfig* out
         return;
     }
 
-    const char* secondHash = strchr(firstHash + 1, '#');
+    secondHash = strchr(firstHash + 1, '#');
 
     // Format: invalid (only 1 # found). We fall back to treating it as just interface name.
     if (!secondHash)
@@ -54,7 +61,7 @@ static inline void parseCanConfig(const char* rawConfig, CanInterfaceConfig* out
     }
 
     // Format: can_interface_name#usb_id#led_name
-    size_t interfaceLen = firstHash - rawConfig;
+    interfaceLen = firstHash - rawConfig;
     if (interfaceLen > sizeof(outConfig->interfaceName) - 1)
     {
         interfaceLen = sizeof(outConfig->interfaceName) - 1;
@@ -62,7 +69,7 @@ static inline void parseCanConfig(const char* rawConfig, CanInterfaceConfig* out
     strncpy(outConfig->interfaceName, rawConfig, interfaceLen);
     outConfig->interfaceName[interfaceLen] = '\0';
 
-    size_t usbLen = secondHash - (firstHash + 1);
+    usbLen = secondHash - (firstHash + 1);
     if (usbLen > sizeof(outConfig->usbId) - 1)
     {
         usbLen = sizeof(outConfig->usbId) - 1;
@@ -85,6 +92,7 @@ public:
         strncpy(m_usbUniqName, usbUniqName ? usbUniqName : "", sizeof(m_usbUniqName) - 1);
         m_usbUniqName[sizeof(m_usbUniqName) - 1] = '\0';
     }
+
     ~UsbWatchdog()
     {
         stop();
@@ -93,26 +101,116 @@ public:
     void start()
     {
         if (m_running) return;
-
-        if (strlen(m_usbUniqName) == 0) return; // No USB ID to monitor
+        if (strlen(m_usbUniqName) == 0) return;
 
         m_running = true;
-
-        // TODO: Add implementation for the watchdog thread
-        // TODO: Add active interface restart logic when hardware is plugged/unplugged
+        m_thread = std::thread(&UsbWatchdog::watchdogLoop, this);
     }
 
     void stop()
     {
-        m_running = false;
+        if (!m_running) return;
 
-        // TODO: Stop and join the watchdog thread
+        m_running = false;
+        if (m_thread.joinable())
+        {
+            m_thread.join();
+        }
     }
 
 private:
+    bool findTtyAcm(char* outTty, size_t outSize)
+    {
+        char basePath[256];
+        DIR* dir;
+        struct dirent* entry;
+        bool found = false;
+
+        snprintf(basePath, sizeof(basePath), "/sys/bus/usb/devices/%s", m_usbUniqName);
+        dir = opendir(basePath);
+        if (!dir) return false;
+
+        while ((entry = readdir(dir)) != NULL)
+        {
+            // Look for interface directories like "1-1.2:1.0"
+            if (entry->d_type == DT_DIR && strchr(entry->d_name, ':'))
+            {
+                char ttyPath[512];
+                DIR* ttyDir;
+                struct dirent* ttyEntry;
+
+                snprintf(ttyPath, sizeof(ttyPath), "%s/%s/tty", basePath, entry->d_name);
+                ttyDir = opendir(ttyPath);
+                if (ttyDir)
+                {
+                    while ((ttyEntry = readdir(ttyDir)) != NULL)
+                    {
+                        if (strncmp(ttyEntry->d_name, "ttyACM", 6) == 0)
+                        {
+                            strncpy(outTty, ttyEntry->d_name, outSize - 1);
+                            outTty[outSize - 1] = '\0';
+                            found = true;
+                            break;
+                        }
+                    }
+                    closedir(ttyDir);
+                }
+            }
+            if (found) break;
+        }
+        closedir(dir);
+        return found;
+    }
+
+    void watchdogLoop()
+    {
+        int i;
+
+        while (m_running)
+        {
+            char usbPath[256];
+            char netPath[256];
+            bool usbPresent;
+            bool netPresent;
+
+            snprintf(usbPath, sizeof(usbPath), "/sys/bus/usb/devices/%s", m_usbUniqName);
+            snprintf(netPath, sizeof(netPath), "/sys/class/net/%s", m_canInterfaceName);
+
+            usbPresent = (access(usbPath, F_OK) == 0);
+            netPresent = (access(netPath, F_OK) == 0);
+
+            if (usbPresent && !netPresent)
+            {
+                char ttyName[64];
+                if (findTtyAcm(ttyName, sizeof(ttyName)))
+                {
+                    char cmd[256];
+                    
+                    // slcand -o -c -s6 /dev/ttyACMx canx
+                    snprintf(cmd, sizeof(cmd), "slcand -o -c -s6 /dev/%s %s &", ttyName, m_canInterfaceName);
+                    system(cmd);
+
+                    // Wait 100ms for interface to be created
+                    usleep(100000);
+
+                    // ip link set up canx
+                    snprintf(cmd, sizeof(cmd), "ip link set %s up", m_canInterfaceName);
+                    system(cmd);
+                }
+            }
+
+            // Sleep 2 seconds (interruptible)
+            for (i = 0; i < 20 && m_running; ++i)
+            {
+                usleep(100000);
+            }
+        }
+    }
+
     char m_canInterfaceName[64];
     char m_usbUniqName[64];
-    bool m_running;
+    std::atomic<bool> m_running;
+    std::thread m_thread;
 };
 
 // --- MainService Implementation ---
@@ -172,8 +270,6 @@ int MainService::run()
 #endif
             destroySniffer();
             m_restartRequested = false;
-            // Params are updated via onSystemCommand, but we might want to reload from file to be sure?
-            // Actually, update() saves to file, so the object is up to date.
         }
     }
 
@@ -192,7 +288,6 @@ void MainService::onSystemCommand(uint32_t cmd, const uint8_t* data, size_t len)
     {
         if (len > 0 && m_params)
         {
-            // Ensure null termination for string parsing
             char* buffer = new char[len + 1];
             memcpy(buffer, data, len);
             buffer[len] = '\0';
@@ -201,12 +296,7 @@ void MainService::onSystemCommand(uint32_t cmd, const uint8_t* data, size_t len)
             printf("[MainService] Received new parameters:\n%s\n", buffer);
 #endif
             m_params->update(buffer);
-
             delete[] buffer;
-
-            // Trigger restart
-            // TODO: Watchdogs will be destroyed and recreated here when destroySniffer()/createSniffer() is called.
-            // Need to ensure watchdogs cleanly shut down and release hardware resources.
             m_restartRequested = true;
         }
     }
@@ -214,17 +304,20 @@ void MainService::onSystemCommand(uint32_t cmd, const uint8_t* data, size_t len)
 
 void MainService::createSniffer()
 {
+    sniffer::SnifferParams params;
+    const char* sysNameRaw;
+    const char* compNameRaw;
+    CanInterfaceConfig sysConfig, compConfig;
+    int servicePort, clientPort;
+
     if (m_sniffer) return;
 
 #ifdef DEBUG
     printf("[MainService] Starting Sniffer...\n");
 #endif
 
-    sniffer::SnifferParams params;
-    const char* sysNameRaw = m_params->get("car_system_can_name");
-    const char* compNameRaw = m_params->get("car_computer_can_name");
-    CanInterfaceConfig sysConfig, compConfig;
-    int servicePort, clientPort;
+    sysNameRaw = m_params->get("car_system_can_name");
+    compNameRaw = m_params->get("car_computer_can_name");
 
     parseCanConfig(sysNameRaw ? sysNameRaw : "vcan0", &sysConfig);
     parseCanConfig(compNameRaw ? compNameRaw : "vcan1", &compConfig);
@@ -248,8 +341,7 @@ void MainService::createSniffer()
     m_sniffer = new sniffer::Sniffer(params);
     m_sniffer->setSystemCallback(this);
 
-    // Initialize watchdogs if needed
-    // TODO: When Sniffer is decoupled, the watchdogs should be responsible for bringing up the interfaces and injecting them.
+    // Initialize watchdogs
     if (strlen(sysConfig.usbId) > 0)
     {
         m_systemWatchdog = new UsbWatchdog(sysConfig.interfaceName, sysConfig.usbId);
@@ -265,8 +357,7 @@ void MainService::createSniffer()
     if (!m_sniffer->start())
     {
         fprintf(stderr, "[MainService] Failed to start Sniffer!\n");
-        destroySniffer(); // This will clean up the watchdogs too
-        // Wait a bit before retrying to avoid busy loop
+        destroySniffer();
         std::this_thread::sleep_for(std::chrono::seconds(2));
     }
 }
