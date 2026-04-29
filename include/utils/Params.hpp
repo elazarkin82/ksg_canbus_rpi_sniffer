@@ -21,8 +21,7 @@ public:
     Params(const char* filePath, const char* defaultParams)
         : m_count(0)
     {
-        strncpy(m_filePath, filePath, MAX_PATH_LEN - 1);
-        m_filePath[MAX_PATH_LEN - 1] = '\0';
+        snprintf(m_filePath, sizeof(m_filePath), "%s", filePath);
 
         // Parse defaults to populate keys
         parseAndSet(defaultParams, true);
@@ -160,20 +159,15 @@ private:
         if (idx >= 0)
         {
             // Update existing
-            strncpy(m_values[idx], val, MAX_VAL_LEN - 1);
-            m_values[idx][MAX_VAL_LEN - 1] = '\0';
+            snprintf(m_values[idx], sizeof(m_values[idx]), "%s", val);
         }
         else if (createNew)
         {
             // Add new
             if (m_count < MAX_PARAMS)
             {
-                strncpy(m_keys[m_count], key, MAX_KEY_LEN - 1);
-                m_keys[m_count][MAX_KEY_LEN - 1] = '\0';
-
-                strncpy(m_values[m_count], val, MAX_VAL_LEN - 1);
-                m_values[m_count][MAX_VAL_LEN - 1] = '\0';
-
+                snprintf(m_keys[m_count], sizeof(m_keys[m_count]), "%s", key);
+                snprintf(m_values[m_count], sizeof(m_values[m_count]), "%s", val);
                 m_count++;
             }
             else

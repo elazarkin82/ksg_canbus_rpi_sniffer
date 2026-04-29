@@ -22,7 +22,7 @@ UdpCommunication::UdpCommunication(base::ICommunicationListener& listener, const
     memset(m_ip, 0, sizeof(m_ip));
     if (ip)
     {
-        strncpy(m_ip, ip, sizeof(m_ip) - 1);
+        snprintf(m_ip, sizeof(m_ip), "%s", ip);
     }
     memset(&m_lastSender, 0, sizeof(m_lastSender));
 }

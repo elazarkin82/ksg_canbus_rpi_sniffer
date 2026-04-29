@@ -19,7 +19,7 @@ ObdCanbusCommunication::ObdCanbusCommunication(base::ICommunicationListener& lis
     memset(m_interfaceName, 0, sizeof(m_interfaceName));
     if (interfaceName)
     {
-        strncpy(m_interfaceName, interfaceName, sizeof(m_interfaceName) - 1);
+        snprintf(m_interfaceName, sizeof(m_interfaceName), "%s", interfaceName);
     }
 }
 
@@ -54,7 +54,7 @@ int32_t ObdCanbusCommunication::open()
 
     // Get interface index
     memset(&ifr, 0, sizeof(ifr));
-    strncpy(ifr.ifr_name, m_interfaceName, IFNAMSIZ - 1);
+    snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "%s", m_interfaceName);
     if (ioctl(m_socketFd, SIOCGIFINDEX, &ifr) < 0)
     {
         ::close(m_socketFd);

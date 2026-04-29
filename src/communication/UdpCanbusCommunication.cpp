@@ -46,7 +46,7 @@ int32_t UdpCanbusCommunication::write(const uint8_t* data, size_t length)
 
     if (remoteIp && remoteIp[0] != '\0')
     {
-        strncpy(ip, remoteIp, sizeof(ip)-1);
+        snprintf(ip, sizeof(ip), "%s", remoteIp);
     }
     else
     {

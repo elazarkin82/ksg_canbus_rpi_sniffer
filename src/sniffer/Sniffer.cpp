@@ -160,8 +160,7 @@ namespace FilterEngine
                 {
                     for (int j = 0; j < 8 && j < (int)len; ++j)
                     {
-                        data[j] = (data[j] & ~rule->modification_mask[j]) |
-                                  (rule->modification_data[j] & rule->modification_mask[j]);
+                        data[j] = (data[j] & ~rule->modification_mask[j]) | (rule->modification_data[j] & rule->modification_mask[j]);
                     }
                     return true;
                 }
@@ -186,13 +185,11 @@ void Sniffer::extractInterfaceName(const char* fullConfig, char* outInterfaceNam
     {
         copyLen = hashPos - fullConfig;
         if (copyLen >= outSize) copyLen = outSize - 1;
-        strncpy(outInterfaceName, fullConfig, copyLen);
-        outInterfaceName[copyLen] = '\0';
+        snprintf(outInterfaceName, copyLen + 1, "%s", fullConfig);
     }
     else
     {
-        strncpy(outInterfaceName, fullConfig, outSize - 1);
-        outInterfaceName[outSize - 1] = '\0';
+        snprintf(outInterfaceName, outSize, "%s", fullConfig);
     }
 }
 
@@ -210,11 +207,8 @@ Sniffer::Sniffer(const SnifferParams& params)
     char compInterfaceName[64];
 
     // Save raw config strings
-    strncpy(m_systemCanConfig, params.car_system_can_name, sizeof(m_systemCanConfig) - 1);
-    m_systemCanConfig[sizeof(m_systemCanConfig) - 1] = '\0';
-
-    strncpy(m_computerCanConfig, params.car_computer_can_name, sizeof(m_computerCanConfig) - 1);
-    m_computerCanConfig[sizeof(m_computerCanConfig) - 1] = '\0';
+    snprintf(m_systemCanConfig, sizeof(m_systemCanConfig), "%s", params.car_system_can_name);
+    snprintf(m_computerCanConfig, sizeof(m_computerCanConfig), "%s", params.car_computer_can_name);
 
     // Parse out just the interface name
     extractInterfaceName(m_systemCanConfig, sysInterfaceName, sizeof(sysInterfaceName));
