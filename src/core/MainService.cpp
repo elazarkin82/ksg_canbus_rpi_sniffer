@@ -137,7 +137,7 @@ private:
     {
         DIR* dir;
         struct dirent* entry;
-        char cmdlinePath[256];
+        char cmdlinePath[512]; // Increased to avoid truncation warning
         char buf[1024];
         char* p;
         int fd;
@@ -233,23 +233,9 @@ private:
                     }
                     closedir(ttyDir);
                 }
-                if (found) break;
-
-                snprintf(ttyPath, sizeof(ttyPath), "%s/%s", basePath, entry->d_name);
-                ttyDir = opendir(ttyPath);
-                if (ttyDir)
+                else
                 {
-                    while ((ttyEntry = readdir(ttyDir)) != NULL)
-                    {
-                        if (strncmp(ttyEntry->d_name, "ttyACM", 6) == 0)
-                        {
-                            fprintf(stdout, "[UsbWatchdog] Found ttyACM device: %s\n", ttyEntry->d_name);
-                            snprintf(outTty, outSize, "%s", ttyEntry->d_name);
-                            found = true;
-                            break;
-                        }
-                    }
-                    closedir(ttyDir);
+                    fprintf(stderr, "[UsbWatchdog] Error opening tty directory: %s\n", ttyPath);
                 }
             }
             if (found) break;
