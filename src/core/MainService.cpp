@@ -119,18 +119,23 @@ private:
     bool findTtyAcm(char* outTty, size_t outSize)
     {
         char basePath[256];
-        DIR* dir;
-        struct dirent* entry;
+        DIR *dir;
+        struct dirent *entry;
         bool found = false;
+        fprintf(stdout, "[UsbWatchdog] Looking for ttyACM device...\n");
 
         snprintf(basePath, sizeof(basePath), "/sys/bus/usb/devices/%s", m_usbUniqName);
         dir = opendir(basePath);
-        if (!dir) return false;
+        if (!dir)
+        {
+            fprintf(stderr, "Error opening directory: %s\n", basePath);
+            return false;
+        }
 
         while ((entry = readdir(dir)) != NULL)
         {
             // Look for interface directories like "1-1.2:1.0"
-            if (entry->d_type == DT_DIR && strchr(entry->d_name, ':'))
+            if (entry->d_type == DT_DIR)
             {
                 char ttyPath[1024];
                 DIR* ttyDir;
@@ -142,16 +147,25 @@ private:
                 {
                     while ((ttyEntry = readdir(ttyDir)) != NULL)
                     {
+                        fprintf(stdout, "[UsbWatchdog] Check tty entry: %s\n", ttyEntry->d_name);
                         if (strncmp(ttyEntry->d_name, "ttyACM", 6) == 0)
                         {
-                            strncpy(outTty, ttyEntry->d_name, outSize - 1);
-                            outTty[outSize - 1] = '\0';
+                            fprintf(stdout, "[UsbWatchdog] Found ttyACM device: %s\n", ttyEntry->d_name);
+                            snprintf(outTty, outSize, "%s", ttyEntry->d_name);
                             found = true;
                             break;
                         }
                     }
                     closedir(ttyDir);
                 }
+                else
+                {
+                    fprintf(stderr, "[UsbWatchdog] Error opening tty directory: %s\n", ttyPath);
+                }
+            }
+            else
+            {
+                fprintf(stdout, "[UsbWatchdog] Skipping non-interface directory: %s\n", entry->d_name);
             }
             if (found) break;
         }
@@ -161,6 +175,7 @@ private:
 
     void watchdogLoop()
     {
+        fprintf(stdout, "[UsbWatchdog] Starting watchdog loop...\n");
         while (m_running)
         {
             char usbPath[256];
@@ -171,8 +186,12 @@ private:
             snprintf(usbPath, sizeof(usbPath), "/sys/bus/usb/devices/%s", m_usbUniqName);
             snprintf(netPath, sizeof(netPath), "/sys/class/net/%s", m_canInterfaceName);
 
+            fprintf(stdout, "[UsbWatchdog] Checking USB device %s, trying to map to %s...\n", m_usbUniqName, m_canInterfaceName);
+
             usbPresent = (access(usbPath, F_OK) == 0);
             netPresent = (access(netPath, F_OK) == 0);
+
+            fprintf(stdout, "[UsbWatchdog] USB: %s, NET: %s\n", usbPresent ? "Present" : "Missing", netPresent ? "Present" : "Missing");
 
             if (usbPresent && !netPresent)
             {
@@ -182,7 +201,7 @@ private:
                     char cmd[256];
                     int res;
                     
-                    printf("[UsbWatchdog] USB device %s detected. Mapping to /dev/%s...\n", m_usbUniqName, ttyName);
+                    fprintf(stdout, "[UsbWatchdog] USB device %s detected. Mapping to /dev/%s...\n", m_usbUniqName, ttyName);
 
                     // slcand -o -c -s6 /dev/ttyACMx canx
                     snprintf(cmd, sizeof(cmd), "slcand -o -c -s6 /dev/%s %s &", ttyName, m_canInterfaceName);
@@ -197,7 +216,7 @@ private:
                     res = system(cmd);
                     (void)res;
 
-                    printf("[UsbWatchdog] Interface %s is configured and up.\n", m_canInterfaceName);
+                    fprintf(stdout, "[UsbWatchdog] Interface %s is configured and up.\n", m_canInterfaceName);
                 }
             }
 
@@ -344,12 +363,14 @@ void MainService::createSniffer()
     // Initialize watchdogs
     if (strlen(sysConfig.usbId) > 0)
     {
+        fprintf(stdout, "[MainService] Starting USB (%s) watchdog for System CAN...\n", sysConfig.usbId);
         m_systemWatchdog = new UsbWatchdog(sysConfig.interfaceName, sysConfig.usbId);
         m_systemWatchdog->start();
     }
 
     if (strlen(compConfig.usbId) > 0)
     {
+        fprintf(stdout, "[MainService] Starting USB (%s) watchdog for Computer CAN...\n", compConfig.usbId);
         m_computerWatchdog = new UsbWatchdog(compConfig.interfaceName, compConfig.usbId);
         m_computerWatchdog->start();
     }
