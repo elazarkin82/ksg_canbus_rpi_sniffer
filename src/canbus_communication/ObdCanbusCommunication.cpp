@@ -32,7 +32,7 @@ int32_t ObdCanbusCommunication::open()
 {
     struct sockaddr_can addr;
     struct ifreq ifr;
-    int enable_canfd = 1;
+    // int enable_canfd = 1;
     can_err_mask_t err_mask = CAN_ERR_MASK;
 
     if (m_socketFd >= 0)
@@ -40,9 +40,12 @@ int32_t ObdCanbusCommunication::open()
         return 0; // Already open
     }
 
+    printf("[ObdCanbusCommunication] Attempting to open CAN interface '%s'...\n", m_interfaceName);
+
     m_socketFd = socket(PF_CAN, SOCK_RAW, CAN_RAW);
     if (m_socketFd < 0)
     {
+        fprintf(stderr, "[ObdCanbusCommunication] Error: socket creation failed for %s: %s\n", m_interfaceName, strerror(errno));
         return -1;
     }
 
@@ -57,6 +60,7 @@ int32_t ObdCanbusCommunication::open()
     snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "%s", m_interfaceName);
     if (ioctl(m_socketFd, SIOCGIFINDEX, &ifr) < 0)
     {
+        fprintf(stderr, "[ObdCanbusCommunication] Error: interface '%s' not found (yet?): %s\n", m_interfaceName, strerror(errno));
         ::close(m_socketFd);
         m_socketFd = -1;
         return -1;
@@ -69,12 +73,13 @@ int32_t ObdCanbusCommunication::open()
 
     if (bind(m_socketFd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
     {
+        fprintf(stderr, "[ObdCanbusCommunication] Error: bind failed for %s: %s\n", m_interfaceName, strerror(errno));
         ::close(m_socketFd);
         m_socketFd = -1;
         return -1;
     }
 
-    fprintf(stderr, "[ObdCanbusCommunication] Successfully bound to interface '%s'\n", m_interfaceName);
+    fprintf(stdout, "[ObdCanbusCommunication] Successfully bound to interface '%s'\n", m_interfaceName);
     return 0;
 }
 

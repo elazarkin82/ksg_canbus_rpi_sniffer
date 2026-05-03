@@ -293,6 +293,7 @@ Sniffer::~Sniffer()
 
 bool Sniffer::start()
 {
+    bool start_success = true;
     if (m_running)
     {
         return true;
@@ -300,27 +301,18 @@ bool Sniffer::start()
 
     m_running = true;
 
-    if (!m_carSystemCan->start())
-    {
-        fprintf(stderr, "Failed to start Car System CAN\n");
-        return false;
-    }
-
-    if (!m_carComputerCan->start())
-    {
-        fprintf(stderr, "Failed to start Car Computer CAN\n");
-        return false;
-    }
+    m_carSystemCan->start_reconnectable_mode();
+    m_carComputerCan->start_reconnectable_mode();
 
     if (!m_externalService->start())
     {
         fprintf(stderr, "Failed to start External Service\n");
-        return false;
+        start_success = false;
     }
 
     m_watchdogThread = std::thread(&Sniffer::watchdogLoop, this);
 
-    return true;
+    return start_success;
 }
 
 void Sniffer::stop()

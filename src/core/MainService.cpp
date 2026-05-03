@@ -86,11 +86,8 @@ class UsbWatchdog
 public:
     UsbWatchdog(const char* canInterfaceName, const char* usbUniqName) : m_running(false)
     {
-        strncpy(m_canInterfaceName, canInterfaceName ? canInterfaceName : "", sizeof(m_canInterfaceName) - 1);
-        m_canInterfaceName[sizeof(m_canInterfaceName) - 1] = '\0';
-
-        strncpy(m_usbUniqName, usbUniqName ? usbUniqName : "", sizeof(m_usbUniqName) - 1);
-        m_usbUniqName[sizeof(m_usbUniqName) - 1] = '\0';
+        snprintf(m_canInterfaceName, sizeof(m_canInterfaceName), "%s", canInterfaceName);
+        snprintf(m_usbUniqName, sizeof(m_usbUniqName), "%s", usbUniqName);
     }
 
     ~UsbWatchdog()
@@ -135,7 +132,7 @@ private:
             // Look for interface directories like "1-1.2:1.0"
             if (entry->d_type == DT_DIR && strchr(entry->d_name, ':'))
             {
-                char ttyPath[512];
+                char ttyPath[1024];
                 DIR* ttyDir;
                 struct dirent* ttyEntry;
 
@@ -164,8 +161,6 @@ private:
 
     void watchdogLoop()
     {
-        int i;
-
         while (m_running)
         {
             char usbPath[256];
@@ -185,22 +180,29 @@ private:
                 if (findTtyAcm(ttyName, sizeof(ttyName)))
                 {
                     char cmd[256];
+                    int res;
                     
+                    printf("[UsbWatchdog] USB device %s detected. Mapping to /dev/%s...\n", m_usbUniqName, ttyName);
+
                     // slcand -o -c -s6 /dev/ttyACMx canx
                     snprintf(cmd, sizeof(cmd), "slcand -o -c -s6 /dev/%s %s &", ttyName, m_canInterfaceName);
-                    system(cmd);
+                    res = system(cmd);
+                    (void)res;
 
                     // Wait 100ms for interface to be created
                     usleep(100000);
 
                     // ip link set up canx
                     snprintf(cmd, sizeof(cmd), "ip link set %s up", m_canInterfaceName);
-                    system(cmd);
+                    res = system(cmd);
+                    (void)res;
+
+                    printf("[UsbWatchdog] Interface %s is configured and up.\n", m_canInterfaceName);
                 }
             }
 
             // Sleep 2 seconds (interruptible)
-            for (i = 0; i < 20 && m_running; ++i)
+            for (int i = 0; i < 20 && m_running; ++i)
             {
                 usleep(100000);
             }
@@ -244,7 +246,6 @@ int MainService::run()
 
     // Load Params
     m_params = new utils::Params(m_configPath, DEFAULT_PARAMS);
-
     m_running = true;
 
     while (m_running)
@@ -254,8 +255,7 @@ int MainService::run()
             createSniffer();
         }
 
-        // Main Loop Sleep
-        // Check for restart request periodically
+        // Main Loop Sleep - check for restart request periodically
         for (int i = 0; i < 10; ++i) // 1 second total
         {
             if (!m_running) break;
@@ -356,9 +356,7 @@ void MainService::createSniffer()
 
     if (!m_sniffer->start())
     {
-        fprintf(stderr, "[MainService] Failed to start Sniffer!\n");
-        destroySniffer();
-        std::this_thread::sleep_for(std::chrono::seconds(2));
+        fprintf(stderr, "[MainService] Sniffer started with errors!\n");
     }
 }
 
