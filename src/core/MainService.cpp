@@ -251,7 +251,7 @@ private:
         {
             char usbPath[256];
             char netPath[256];
-            char ttyName[64];
+            char ttyName[256];
             bool usbPresent;
             bool netPresent;
             int status;
@@ -273,7 +273,7 @@ private:
                 fprintf(stdout, "[UsbWatchdog] Checking USB device %s, trying to map to %s...\n", m_usbUniqName, m_canInterfaceName);
                 if (findTtyAcm(ttyName, sizeof(ttyName)))
                 {
-                    char cmd[256];
+                    char cmd[1024];
                     int res;
                     killExistingSlcand();
                     fprintf(stdout, "[UsbWatchdog] USB device %s detected. Mapping to /dev/%s...\n", m_usbUniqName, ttyName);

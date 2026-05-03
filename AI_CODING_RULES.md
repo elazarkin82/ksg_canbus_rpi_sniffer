@@ -1,15 +1,18 @@
 # AI Coding Rules
 
-1. **Strict Obedience on Exclusions**: If instructed not to code a specific expression or feature, do not code it under any circumstances.
-2. **Explicit Scope Only**: Code ONLY what was explicitly requested and agreed upon. Do not proactively add unrequested improvements, refactoring, code cleanup, or "nice-to-have" features. 
-3. **Infrastructure Preservation**: NEVER remove, comment out, or modify existing `printf`, `fprintf`, or any log statements unless explicitly instructed. Do not remove or modify existing comments. Treat existing code structure as "read-only" unless it is the specific logic being changed.
-4. **Tool Usage**: Prefer using `replace_text` over `write_file` for targeted changes to avoid overwriting or "cleaning up" unrelated parts of the file.
-5. **C-Style C++ (Sniffer & Emulators)**: For code related to the sniffer and emulators components, stick as closely as possible to C-style programming, even within .cpp files. 
-   * Using object-oriented features like classes and polymorphism is still required/allowed where appropriate.
-6. **Header Includes**: Use standard C-style includes with the `.h` extension whenever possible (e.g., `<stdint.h>`, `<stdio.h>`).
-7. **Avoid `std::`**: Minimize the use of the C++ Standard Library (`std::`). Exceptions are allowed only for specific multithreading primitives such as `std::thread`, `std::mutex`, or `std::condition_variable` where necessary.
-8. **Variable Declarations**: Declare variables at the beginning of their respective block (C-style), not necessarily at the beginning of the function. If a variable is used only within a specific internal block, it must be declared at the top of that specific block. 
-   * **IMPORTANT**: Do not move existing variables. Keep them exactly where the developer placed them.
-   * **Exception**: Variables used exclusively in for-loops can (and should) be declared within the loop statement (e.g., `for (int i = 0; ...)`).
-9. **No Magic Numbers**: Avoid hardcoding numbers (like buffer sizes). Use `sizeof()` or defined constants to prevent potential bugs if buffer sizes change in the future.
-10. **Code Deduplication**: Avoid duplicating parsing or logic blocks. Extract repeating logic into dedicated private helper functions.
+1. **Explicit Instruction Only**: Do not code or modify any code unless explicitly instructed to do so.
+2. **Strict Scope Compliance**: Focus ONLY on what was specifically requested and agreed upon. 
+   * Do not remove or modify existing comments unless explicitly told.
+   * Do not "improve", refactor, or clean up code that was not part of the request.
+   * Do not apply these coding rules to existing code unless explicitly asked to refactor it.
+3. **Product Code Style (C-Style C++)**:
+   * Stick as closely as possible to C-style programming within `.cpp` and `.hpp` files.
+   * Classes and object-oriented features are allowed/required where appropriate.
+   * **Avoid `std::`**: Minimize use of the C++ Standard Library. Permitted exceptions: `std::thread`, `std::mutex`, `std::chrono`, and `std::condition_variable`.
+   * **Variable Declarations**: Declare variables at the beginning of their respective block `{}`. If a variable is only used within an internal block, it must be declared at the top of that specific block.
+   * **For Loops**: Variables used exclusively in for-loops can be declared within the loop statement (e.g., `for (int i = 0; ...)`).
+   * **Header Includes**: Use standard C-style includes with the `.h` extension whenever possible (e.g., `<stdint.h>`, `<stdio.h>`), except for the allowed C++ components (`thread`, `mutex`, `chrono`).
+4. **Test Code Style**: Modern C++ (latest standards) is fully allowed and encouraged for all test-related code.
+5. **Infrastructure Preservation**: NEVER remove, comment out, or modify existing `printf`, `fprintf`, or any log statements unless explicitly instructed.
+6. **No Magic Numbers**: Avoid hardcoding numbers.
+7. **Code Deduplication**: Extract repeating logic into dedicated private helper functions.
