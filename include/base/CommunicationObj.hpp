@@ -130,19 +130,14 @@ public:
         fprintf(stdout, "[CommunicationObj] stop() initiated...\n");
 
         {
-            // Try to lock for a short time, then force stop if failed
-            std::unique_lock<std::timed_mutex> lock(m_mutex, std::defer_lock);
-            if (lock.try_lock_for(std::chrono::milliseconds(500)))
+            std::lock_guard<std::timed_mutex> lock(m_mutex);
+            if (!m_running && !m_rxThread.joinable() && !m_workerThread.joinable())
             {
-                wasRunning = m_running;
-                m_running = false;
+                fprintf(stdout, "[CommunicationObj] stop() already completed or not running.\n");
+                return;
             }
-            else
-            {
-                fprintf(stdout, "[CommunicationObj] stop() mutex timeout, forcing running=false\n");
-                m_running = false;
-                wasRunning = true; 
-            }
+            wasRunning = m_running;
+            m_running = false;
         }
 
         if (wasRunning)
@@ -407,25 +402,34 @@ private:
     // --- Supervisor Thread: Monitors and reconnects if connection drops ---
     void supervisorThreadLoop()
     {
+        int i;
         while (m_reconnectMode)
         {
             if (!m_running)
             {
                 // Connection is down (either never started, or dropped).
-                stop(); // Ensure completely clean state (join dead threads, release descriptors)
+                stop(); 
+                
+                if (!m_reconnectMode) break;
 
                 m_listener.onStatusChanged(STATUS_CONNECTING);
 
                 if (!start())
                 {
                     // Failed to start/reconnect, wait before retry
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    for (i = 0; i < 10 && m_reconnectMode; ++i)
+                    {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                    }
                 }
             }
             else
             {
                 // Running fine, just wait and monitor
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                for (i = 0; i < 10 && m_reconnectMode; ++i)
+                {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                }
             }
         }
     }

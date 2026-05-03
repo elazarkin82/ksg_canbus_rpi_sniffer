@@ -342,13 +342,13 @@ void Sniffer::stop()
 #ifdef DEBUG
         printf("[Sniffer] Stopping Car System CAN...\n");
 #endif
-        m_carSystemCan->stop();
+        m_carSystemCan->stop_reconnectable_mode();
     }
     if (m_carComputerCan) {
 #ifdef DEBUG
         printf("[Sniffer] Stopping Car Computer CAN...\n");
 #endif
-        m_carComputerCan->stop();
+        m_carComputerCan->stop_reconnectable_mode();
     }
     if (m_externalService) {
 #ifdef DEBUG
