@@ -396,18 +396,15 @@ void Sniffer::handleStatusChanged(Source source, base::CommunicationStatus statu
     switch (status)
     {
     case base::STATUS_CONNECTED:
-        // Healthy: 1000ms ON / 1000ms OFF
-        ledUtil.setTimer(ledName, 1000, 1000);
+        ledUtil.setTimer(ledName, 1500, 1500);
         break;
 
     case base::STATUS_DISCONNECTED:
-        // Error Type 1: 200ms ON / 1000ms OFF
-        ledUtil.setTimer(ledName, 200, 1000);
+        ledUtil.setTimer(ledName, 1000, 200);
         break;
 
     case base::STATUS_ERROR:
-        // Error Type 2: 1000ms ON / 200ms OFF
-        ledUtil.setTimer(ledName, 1000, 200);
+        ledUtil.setTimer(ledName, 200, 200);
         break;
 
     default:

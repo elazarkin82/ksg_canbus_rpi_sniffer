@@ -18,8 +18,8 @@ TEST_EXECUTABLES = [
     "car_system_test.py",
     "car_computer_test.py",
     "emulators_integration_test.py",
-    # "run_sniffer_test.py",
-    # "main_service_tester.py"
+    "run_sniffer_test.py",
+    "main_service_tester.py"
 ]
 
 # Colors
