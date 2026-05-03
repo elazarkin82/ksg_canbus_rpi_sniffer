@@ -18,6 +18,7 @@ public:
 
     int run();
     void stop();
+    bool isRunning() const { return m_running; }
 
     // --- ISystemCallback Implementation ---
     virtual void onSystemCommand(uint32_t cmd, const uint8_t* data, size_t len) override;

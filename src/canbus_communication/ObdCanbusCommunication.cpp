@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
+#include <poll.h>
 
 namespace canbus_communication
 {
@@ -94,11 +95,30 @@ void ObdCanbusCommunication::close()
 
 int32_t ObdCanbusCommunication::read(uint8_t* buffer, size_t maxLen)
 {
+    struct pollfd pfd;
+    int ret;
     ssize_t bytesRead = 0;
 
     if (m_socketFd < 0)
     {
         return -1;
+    }
+
+    pfd.fd = m_socketFd;
+    pfd.events = POLLIN;
+
+    // Timeout of 100ms to allow checking m_running flag frequently
+    ret = poll(&pfd, 1, 100);
+
+    if (ret < 0)
+    {
+        if (errno == EINTR) return 0;
+        return -1;
+    }
+    
+    if (ret == 0)
+    {
+        return 0; // Timeout, return to loop
     }
 
     bytesRead = ::read(m_socketFd, buffer, maxLen);
@@ -165,6 +185,9 @@ void ObdCanbusCommunication::unblock()
     {
         // Shutdown read/write to force read() to return immediately
         ::shutdown(m_socketFd, SHUT_RDWR);
+        // Closing the socket will force poll() and read() to return EBADF if they are waiting
+        ::close(m_socketFd);
+        m_socketFd = -1;
     }
 }
 

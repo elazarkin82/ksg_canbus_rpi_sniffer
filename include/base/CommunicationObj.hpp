@@ -89,7 +89,7 @@ public:
     bool start()
     {
         size_t maxFrameSize = 0;
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard<std::timed_mutex> lock(m_mutex);
 
         if (m_running)
         {
@@ -125,10 +125,21 @@ public:
     void stop()
     {
         bool wasRunning = false;
+        
         {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            wasRunning = m_running;
-            m_running = false;
+            // Try to lock for a short time, then force stop if failed
+            std::unique_lock<std::timed_mutex> lock(m_mutex, std::defer_lock);
+            if (lock.try_lock_for(std::chrono::milliseconds(500)))
+            {
+                wasRunning = m_running;
+                m_running = false;
+            }
+            else
+            {
+                // Mutex is stuck, force the flag
+                m_running = false;
+                wasRunning = true; 
+            }
         }
 
         if (wasRunning)
@@ -389,13 +400,13 @@ private:
                 if (!start())
                 {
                     // Failed to start/reconnect, wait before retry
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 }
             }
             else
             {
                 // Running fine, just wait and monitor
-                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
         }
     }
@@ -415,12 +426,7 @@ private:
             {
                 if (!m_cacheManager->push(tempBuffer, (size_t)bytesRead))
                 {
-                    // Buffer full and locked by callback -> Drop
-                    if (m_running)
-                    {
-                        // Optional: notify overflow error
-                        // m_listener.onError(ERROR_BUFFER_OVERFLOW);
-                    }
+                    // Overflow
                 }
             }
             else if (bytesRead < 0)
@@ -458,7 +464,7 @@ private:
     std::atomic<bool> m_running;
     std::atomic<bool> m_reconnectMode;
 
-    std::mutex m_mutex; // Protects general state
+    std::timed_mutex m_mutex; 
 
     size_t m_bufferSize;
     CacheManager* m_cacheManager;

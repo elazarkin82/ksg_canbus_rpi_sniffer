@@ -10,6 +10,7 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <ctype.h>
+#include <condition_variable>
 
 namespace core
 {
@@ -113,11 +114,18 @@ public:
         if (!m_running) return;
 
         m_running = false;
-        killExistingSlcand();
+        
+        {
+            std::lock_guard<std::mutex> lock(m_cvMutex);
+            m_cv.notify_all();
+        }
+
         if (m_thread.joinable())
         {
             m_thread.join();
         }
+        
+        killExistingSlcand();
     }
 
 private:
@@ -221,9 +229,23 @@ private:
                     }
                     closedir(ttyDir);
                 }
-                else
+                if (found) break;
+
+                snprintf(ttyPath, sizeof(ttyPath), "%s/%s", basePath, entry->d_name);
+                ttyDir = opendir(ttyPath);
+                if (ttyDir)
                 {
-                    fprintf(stderr, "[UsbWatchdog] Error opening tty directory: %s\n", ttyPath);
+                    while ((ttyEntry = readdir(ttyDir)) != NULL)
+                    {
+                        if (strncmp(ttyEntry->d_name, "ttyACM", 6) == 0)
+                        {
+                            fprintf(stdout, "[UsbWatchdog] Found ttyACM device: %s\n", ttyEntry->d_name);
+                            snprintf(outTty, outSize, "%s", ttyEntry->d_name);
+                            found = true;
+                            break;
+                        }
+                    }
+                    closedir(ttyDir);
                 }
             }
             if (found) break;
@@ -234,7 +256,7 @@ private:
 
     void watchdogLoop()
     {
-        fprintf(stdout, "[UsbWatchdog] Starting watchdog loop...\n");
+        fprintf(stdout, "[UsbWatchdog] Starting watchdog loop for %s...\n", m_canInterfaceName);
         while (m_running)
         {
             char usbPath[256];
@@ -242,6 +264,9 @@ private:
             char ttyName[64];
             bool usbPresent;
             bool netPresent;
+            int status;
+
+            while (waitpid(-1, &status, WNOHANG) > 0);
 
             snprintf(usbPath, sizeof(usbPath), "/sys/bus/usb/devices/%s", m_usbUniqName);
             snprintf(netPath, sizeof(netPath), "/sys/class/net/%s", m_canInterfaceName);
@@ -279,9 +304,9 @@ private:
                 }
             }
 
-            for (int i = 0; i < 20 && m_running; ++i)
             {
-                usleep(100000);
+                std::unique_lock<std::mutex> lock(m_cvMutex);
+                m_cv.wait_for(lock, std::chrono::milliseconds(100), [this] { return !m_running; });
             }
         }
     }
@@ -290,6 +315,8 @@ private:
     char m_usbUniqName[64];
     std::atomic<bool> m_running;
     std::thread m_thread;
+    std::condition_variable m_cv;
+    std::mutex m_cvMutex;
 };
 
 // --- MainService Implementation ---
@@ -332,11 +359,7 @@ int MainService::run()
             createSniffer();
         }
 
-        for (int i = 0; i < 10; ++i)
-        {
-            if (!m_running || m_restartRequested) break;
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
         if (m_restartRequested)
         {
