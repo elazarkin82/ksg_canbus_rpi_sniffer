@@ -113,6 +113,7 @@ public:
     {
         if (!m_running) return;
 
+        printf("[UsbWatchdog] stop() initiated for %s...\n", m_canInterfaceName);
         m_running = false;
         
         {
@@ -122,10 +123,13 @@ public:
 
         if (m_thread.joinable())
         {
+            printf("[UsbWatchdog] Joining thread for %s...\n", m_canInterfaceName);
             m_thread.join();
+            printf("[UsbWatchdog] Thread joined for %s.\n", m_canInterfaceName);
         }
         
         killExistingSlcand();
+        printf("[UsbWatchdog] stop() completed for %s.\n", m_canInterfaceName);
     }
 
 private:
@@ -309,6 +313,7 @@ private:
                 m_cv.wait_for(lock, std::chrono::milliseconds(100), [this] { return !m_running; });
             }
         }
+        fprintf(stdout, "[UsbWatchdog] Watchdog loop exited for %s.\n", m_canInterfaceName);
     }
 
     char m_canInterfaceName[64];
@@ -372,11 +377,13 @@ int MainService::run()
     }
 
     destroySniffer();
+    printf("[MainService] run() loop exited.\n");
     return 0;
 }
 
 void MainService::stop()
 {
+    printf("[MainService] stop() initiated...\n");
     m_running = false;
 }
 
@@ -464,6 +471,7 @@ void MainService::destroySniffer()
 {
     if (m_systemWatchdog)
     {
+        printf("[MainService] Destroying systemWatchdog...\n");
         m_systemWatchdog->stop();
         delete m_systemWatchdog;
         m_systemWatchdog = nullptr;
@@ -471,6 +479,7 @@ void MainService::destroySniffer()
 
     if (m_computerWatchdog)
     {
+        printf("[MainService] Destroying computerWatchdog...\n");
         m_computerWatchdog->stop();
         delete m_computerWatchdog;
         m_computerWatchdog = nullptr;
@@ -478,13 +487,12 @@ void MainService::destroySniffer()
 
     if (m_sniffer)
     {
-#ifdef DEBUG
-        printf("[MainService] Stopping Sniffer...\n");
-#endif
+        printf("[MainService] Stopping and destroying Sniffer...\n");
         m_sniffer->stop();
         delete m_sniffer;
         m_sniffer = nullptr;
     }
+    printf("[MainService] destroySniffer() completed.\n");
 }
 
 } // namespace core

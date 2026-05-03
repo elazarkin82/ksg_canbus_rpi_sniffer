@@ -50,23 +50,25 @@ int main(int argc, char* argv[])
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
-#ifdef DEBUG
-    printf("\nShutdown initiated, stopping service...\n");
-#endif
+    printf("\n[Main] Shutdown initiated, stopping service...\n");
 
     if (g_service)
     {
+        printf("[Main] Calling g_service->stop()...\n");
         g_service->stop();
     }
 
     if (serviceThread.joinable())
     {
+        printf("[Main] Joining serviceThread...\n");
         serviceThread.join();
+        printf("[Main] serviceThread joined.\n");
     }
 
     // Reset PWR and ACT LEDs if they exist
     if (ledUtil.exists("PWR"))
     {
+        printf("[Main] Resetting LEDs...\n");
         ledUtil.takeControl("PWR");
         ledUtil.turnOn("PWR");
     }
@@ -80,8 +82,6 @@ int main(int argc, char* argv[])
     delete g_service;
     g_service = nullptr;
 
-#ifdef DEBUG
-    printf("Exiting...\n");
-#endif
+    printf("[Main] Exiting.\n");
     return 0;
 }

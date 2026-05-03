@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include <thread>
 #include <mutex>
@@ -126,6 +127,8 @@ public:
     {
         bool wasRunning = false;
         
+        fprintf(stdout, "[CommunicationObj] stop() initiated...\n");
+
         {
             // Try to lock for a short time, then force stop if failed
             std::unique_lock<std::timed_mutex> lock(m_mutex, std::defer_lock);
@@ -136,7 +139,7 @@ public:
             }
             else
             {
-                // Mutex is stuck, force the flag
+                fprintf(stdout, "[CommunicationObj] stop() mutex timeout, forcing running=false\n");
                 m_running = false;
                 wasRunning = true; 
             }
@@ -148,22 +151,33 @@ public:
         }
 
         // Wake up worker thread so it can exit
-        if (m_cacheManager) m_cacheManager->notifyStop();
+        if (m_cacheManager) 
+        {
+            fprintf(stdout, "[CommunicationObj] Notifying CacheManager to stop...\n");
+            m_cacheManager->notifyStop();
+        }
 
         // Force unblock of read() if it's blocking
+        fprintf(stdout, "[CommunicationObj] Unblocking I/O...\n");
         unblock();
 
         if (m_rxThread.joinable())
         {
+            fprintf(stdout, "[CommunicationObj] Joining RX thread...\n");
             m_rxThread.join();
+            fprintf(stdout, "[CommunicationObj] RX thread joined.\n");
         }
 
         if (m_workerThread.joinable())
         {
+            fprintf(stdout, "[CommunicationObj] Joining worker thread...\n");
             m_workerThread.join();
+            fprintf(stdout, "[CommunicationObj] Worker thread joined.\n");
         }
 
+        fprintf(stdout, "[CommunicationObj] Closing hardware/socket...\n");
         close();
+        fprintf(stdout, "[CommunicationObj] stop() completed.\n");
     }
 
     /**
@@ -183,10 +197,15 @@ public:
      */
     void stop_reconnectable_mode()
     {
+        if (!m_reconnectMode) return;
+        
+        fprintf(stdout, "[CommunicationObj] stop_reconnectable_mode() initiated...\n");
         m_reconnectMode = false;
         if (m_supervisorThread.joinable())
         {
+            fprintf(stdout, "[CommunicationObj] Joining supervisor thread...\n");
             m_supervisorThread.join();
+            fprintf(stdout, "[CommunicationObj] Supervisor thread joined.\n");
         }
         stop();
     }
