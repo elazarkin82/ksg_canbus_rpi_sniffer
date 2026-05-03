@@ -6,6 +6,10 @@
 #include <chrono>
 #include <atomic>
 #include <dirent.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <ctype.h>
 
 namespace core
 {
@@ -61,7 +65,7 @@ static inline void parseCanConfig(const char* rawConfig, CanInterfaceConfig* out
     }
 
     // Format: can_interface_name#usb_id#led_name
-    interfaceLen = firstHash - rawConfig;
+    interfaceLen = (size_t)(firstHash - rawConfig);
     if (interfaceLen > sizeof(outConfig->interfaceName) - 1)
     {
         interfaceLen = sizeof(outConfig->interfaceName) - 1;
@@ -69,7 +73,7 @@ static inline void parseCanConfig(const char* rawConfig, CanInterfaceConfig* out
     strncpy(outConfig->interfaceName, rawConfig, interfaceLen);
     outConfig->interfaceName[interfaceLen] = '\0';
 
-    usbLen = secondHash - (firstHash + 1);
+    usbLen = (size_t)(secondHash - (firstHash + 1));
     if (usbLen > sizeof(outConfig->usbId) - 1)
     {
         usbLen = sizeof(outConfig->usbId) - 1;
@@ -109,6 +113,7 @@ public:
         if (!m_running) return;
 
         m_running = false;
+        killExistingSlcand();
         if (m_thread.joinable())
         {
             m_thread.join();
@@ -116,13 +121,72 @@ public:
     }
 
 private:
+    void killExistingSlcand()
+    {
+        DIR* dir;
+        struct dirent* entry;
+        char cmdlinePath[256];
+        char buf[1024];
+        char* p;
+        int fd;
+        ssize_t len;
+        bool foundSlcand;
+        bool foundInterface;
+        pid_t pid;
+        int status;
+
+        dir = opendir("/proc");
+        if (!dir) return;
+
+        while ((entry = readdir(dir)) != NULL)
+        {
+            if (isdigit(entry->d_name[0]))
+            {
+                snprintf(cmdlinePath, sizeof(cmdlinePath), "/proc/%s/cmdline", entry->d_name);
+                fd = open(cmdlinePath, O_RDONLY);
+                if (fd >= 0)
+                {
+                    len = read(fd, buf, sizeof(buf) - 1);
+                    close(fd);
+                    if (len > 0)
+                    {
+                        foundSlcand = false;
+                        foundInterface = false;
+                        p = buf;
+                        buf[len] = '\0'; 
+
+                        while (p < buf + len)
+                        {
+                            if (strstr(p, "slcand")) foundSlcand = true;
+                            if (strcmp(p, m_canInterfaceName) == 0) foundInterface = true;
+                            p += strlen(p) + 1;
+                        }
+
+                        if (foundSlcand && foundInterface)
+                        {
+                            pid = (pid_t)atoi(entry->d_name);
+                            if (pid != getpid())
+                            {
+                                fprintf(stdout, "[UsbWatchdog] Killing existing slcand process %d for interface %s\n", (int)pid, m_canInterfaceName);
+                                kill(pid, SIGKILL);
+                                waitpid(pid, &status, WNOHANG);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        closedir(dir);
+    }
+
     bool findTtyAcm(char* outTty, size_t outSize)
     {
         char basePath[256];
         DIR *dir;
         struct dirent *entry;
         bool found = false;
-        fprintf(stdout, "[UsbWatchdog] Looking for ttyACM device...\n");
+
+        fprintf(stdout, "[UsbWatchdog] Looking for ttyACM device for USB %s...\n", m_usbUniqName);
 
         snprintf(basePath, sizeof(basePath), "/sys/bus/usb/devices/%s", m_usbUniqName);
         dir = opendir(basePath);
@@ -175,6 +239,7 @@ private:
         {
             char usbPath[256];
             char netPath[256];
+            char ttyName[64];
             bool usbPresent;
             bool netPresent;
 
@@ -184,19 +249,21 @@ private:
             usbPresent = (access(usbPath, F_OK) == 0);
             netPresent = (access(netPath, F_OK) == 0);
 
-            if (usbPresent && !netPresent)
+            if (!usbPresent)
             {
-                char ttyName[64];
+                killExistingSlcand();
+            }
+            else if (!netPresent)
+            {
                 fprintf(stdout, "[UsbWatchdog] Checking USB device %s, trying to map to %s...\n", m_usbUniqName, m_canInterfaceName);
                 if (findTtyAcm(ttyName, sizeof(ttyName)))
                 {
                     char cmd[256];
                     int res;
-                    
+                    killExistingSlcand();
                     fprintf(stdout, "[UsbWatchdog] USB device %s detected. Mapping to /dev/%s...\n", m_usbUniqName, ttyName);
 
-                    // slcand -o -c -s6 /dev/ttyACMx canx
-                    snprintf(cmd, sizeof(cmd), "slcand -o -c -s6 /dev/%s %s &", ttyName, m_canInterfaceName);
+                    snprintf(cmd, sizeof(cmd), "slcand -f -o -c -s6 /dev/%s %s &", ttyName, m_canInterfaceName);
                     res = system(cmd);
                     (void)res;
 
@@ -212,7 +279,6 @@ private:
                 }
             }
 
-            // Sleep 2 seconds (interruptible)
             for (int i = 0; i < 20 && m_running; ++i)
             {
                 usleep(100000);
@@ -266,11 +332,9 @@ int MainService::run()
             createSniffer();
         }
 
-        // Main Loop Sleep - check for restart request periodically
-        for (int i = 0; i < 10; ++i) // 1 second total
+        for (int i = 0; i < 10; ++i)
         {
-            if (!m_running) break;
-            if (m_restartRequested) break;
+            if (!m_running || m_restartRequested) break;
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 
