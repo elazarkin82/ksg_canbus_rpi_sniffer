@@ -147,7 +147,6 @@ private:
                 {
                     while ((ttyEntry = readdir(ttyDir)) != NULL)
                     {
-                        fprintf(stdout, "[UsbWatchdog] Check tty entry: %s\n", ttyEntry->d_name);
                         if (strncmp(ttyEntry->d_name, "ttyACM", 6) == 0)
                         {
                             fprintf(stdout, "[UsbWatchdog] Found ttyACM device: %s\n", ttyEntry->d_name);
@@ -162,10 +161,6 @@ private:
                 {
                     fprintf(stderr, "[UsbWatchdog] Error opening tty directory: %s\n", ttyPath);
                 }
-            }
-            else
-            {
-                fprintf(stdout, "[UsbWatchdog] Skipping non-interface directory: %s\n", entry->d_name);
             }
             if (found) break;
         }
@@ -186,16 +181,13 @@ private:
             snprintf(usbPath, sizeof(usbPath), "/sys/bus/usb/devices/%s", m_usbUniqName);
             snprintf(netPath, sizeof(netPath), "/sys/class/net/%s", m_canInterfaceName);
 
-            fprintf(stdout, "[UsbWatchdog] Checking USB device %s, trying to map to %s...\n", m_usbUniqName, m_canInterfaceName);
-
             usbPresent = (access(usbPath, F_OK) == 0);
             netPresent = (access(netPath, F_OK) == 0);
-
-            fprintf(stdout, "[UsbWatchdog] USB: %s, NET: %s\n", usbPresent ? "Present" : "Missing", netPresent ? "Present" : "Missing");
 
             if (usbPresent && !netPresent)
             {
                 char ttyName[64];
+                fprintf(stdout, "[UsbWatchdog] Checking USB device %s, trying to map to %s...\n", m_usbUniqName, m_canInterfaceName);
                 if (findTtyAcm(ttyName, sizeof(ttyName)))
                 {
                     char cmd[256];
