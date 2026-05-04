@@ -7,6 +7,7 @@ import multiprocessing
 import shutil
 
 # Configuration
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BUILD_DIR = "build_tests"
 RELEASE_DIR = "release"
 TEST_EXECUTABLES = [
@@ -57,8 +58,8 @@ def create_release(debug_mode=False, debug_msg_mode=False, debug_usb_mode=False)
     print("========================================")
     
     # We are inside BUILD_DIR
-    release_root = os.path.abspath("../release")
-    project_root = os.path.abspath("..")
+    release_root = os.path.join(SCRIPT_DIR, "release")
+    project_root = SCRIPT_DIR
     
     if os.path.exists(release_root):
         shutil.rmtree(release_root)
@@ -88,8 +89,8 @@ def create_release(debug_mode=False, debug_msg_mode=False, debug_usb_mode=False)
     rpi_dir = os.path.join(release_root, "sniffer_service_release", "rpi")
     os.makedirs(rpi_dir)
     
-    # Check for toolchain (relative to build dir)
-    toolchain_file = os.path.abspath("../toolchain-rpi.cmake")
+    # Check for toolchain (relative to script)
+    toolchain_file = os.path.join(SCRIPT_DIR, "toolchain-rpi.cmake")
     if os.path.exists(toolchain_file):
         print("Building for RPi...")
         build_rpi_dir = "build_rpi"
@@ -126,14 +127,14 @@ def create_release(debug_mode=False, debug_msg_mode=False, debug_usb_mode=False)
         else:
             print_colored("Failed to configure for RPi", RED)
     else:
-        print("Toolchain file not found, skipping RPi build.")
+        print(f"Toolchain file not found at {toolchain_file}, skipping RPi build.")
 
     # 3. External Service
     ext_dir = os.path.join(release_root, "external_service_release")
     os.makedirs(ext_dir)
     
     # Copy Python code
-    src_python = "../external_server/python"
+    src_python = os.path.join(SCRIPT_DIR, "external_server/python")
     if os.path.exists(src_python):
         shutil.copytree(src_python, ext_dir, dirs_exist_ok=True)
     
@@ -185,20 +186,21 @@ def main():
             print("----------------------------------------")
 
     # 1. Create Build Directory
-    if not os.path.exists(BUILD_DIR):
-        print(f"Creating build directory: {BUILD_DIR}")
-        os.makedirs(BUILD_DIR)
+    absolute_build_dir = os.path.join(SCRIPT_DIR, BUILD_DIR)
+    if not os.path.exists(absolute_build_dir):
+        print(f"Creating build directory: {absolute_build_dir}")
+        os.makedirs(absolute_build_dir)
 
     # 2. Enter Build Directory
     try:
-        os.chdir(BUILD_DIR)
+        os.chdir(absolute_build_dir)
     except OSError as e:
         print_colored(f"Failed to enter build directory: {e}", RED)
         sys.exit(1)
 
     # 3. Configure (CMake)
     print("Configuring with CMake...")
-    cmake_cmd = "cmake .."
+    cmake_cmd = f"cmake {SCRIPT_DIR}"
     if debug_mode:
         cmake_cmd += " -DCMAKE_BUILD_TYPE=Debug -DDEBUG=1"
     else:
@@ -235,7 +237,7 @@ def main():
     scripts = ["car_system_test.py", "car_computer_test.py", "emulators_integration_test.py", "run_sniffer_test.py", "main_service_tester.py"]
     for script in scripts:
         try:
-            shutil.copy(f"../tests/{script}", ".")
+            shutil.copy(os.path.join(SCRIPT_DIR, "tests", script), ".")
             os.chmod(script, 0o755)
         except Exception as e:
             print_colored(f"Failed to copy {script}: {e}", RED)
