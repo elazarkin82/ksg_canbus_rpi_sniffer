@@ -91,7 +91,10 @@ def create_release(debug_mode=False, debug_msg_mode=False, debug_usb_mode=False)
     
     # Check for toolchain (relative to script)
     toolchain_file = os.path.join(SCRIPT_DIR, "toolchain-rpi.cmake")
-    if os.path.exists(toolchain_file):
+
+    if not os.path.exists(toolchain_file):
+         raise FileNotFoundError(f"RPi toolchain file not found: {toolchain_file}")
+    else:
         print("Building for RPi...")
         build_rpi_dir = "build_rpi"
         if not os.path.exists(build_rpi_dir):
