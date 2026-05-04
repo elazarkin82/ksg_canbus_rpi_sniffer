@@ -129,8 +129,6 @@ def create_release(debug_mode=False, debug_msg_mode=False, debug_usb_mode=False)
                 print_colored("Failed to build for RPi", RED)
         else:
             print_colored("Failed to configure for RPi", RED)
-    else:
-        print(f"Toolchain file not found at {toolchain_file}, skipping RPi build.")
 
     # 3. External Service
     ext_dir = os.path.join(release_root, "external_service_release")
