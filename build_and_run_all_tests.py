@@ -51,7 +51,7 @@ def check_vcan():
     except subprocess.CalledProcessError:
         return False
 
-def create_release(debug_mode=False, debug_msg_mode=False):
+def create_release(debug_mode=False, debug_msg_mode=False, debug_usb_mode=False):
     print("========================================")
     print("           Creating Release             ")
     print("========================================")
@@ -107,6 +107,11 @@ def create_release(debug_mode=False, debug_msg_mode=False):
         else:
             cmake_cmd += " -DDEBUG_MSG=0"
 
+        if debug_usb_mode:
+            cmake_cmd += " -DDEBUG_USB=1"
+        else:
+            cmake_cmd += " -DDEBUG_USB=0"
+
         # Use project_root instead of ..
         if run_command(cmake_cmd, cwd=build_rpi_dir) == 0:
             # Build all required targets for RPi
@@ -151,6 +156,7 @@ def main():
 
     debug_mode = False
     debug_msg_mode = False
+    debug_usb_mode = False
 
     # Parse arguments
     for arg in sys.argv[1:]:
@@ -160,6 +166,9 @@ def main():
         elif arg == "debug_msg":
             debug_msg_mode = True
             print_colored("DEBUG MSG MODE ENABLED", GREEN)
+        elif arg == "debug_usb":
+            debug_usb_mode = True
+            print_colored("DEBUG USB MODE ENABLED", GREEN)
 
     # 0. Check vcan0/1 (Prerequisite for emulator test)
     vcan_ready = check_vcan()
@@ -193,6 +202,11 @@ def main():
         cmake_cmd += " -DDEBUG_MSG=1"
     else:
         cmake_cmd += " -DDEBUG_MSG=0"
+
+    if debug_usb_mode:
+        cmake_cmd += " -DDEBUG_USB=1"
+    else:
+        cmake_cmd += " -DDEBUG_USB=0"
     
     if run_command(cmake_cmd) != 0:
         print_colored("CMake configuration failed!", RED)
@@ -264,7 +278,7 @@ def main():
 
     if failed_tests == 0:
         print_colored("ALL TESTS PASSED!", GREEN)
-        create_release(debug_mode, debug_msg_mode) # Create release if tests passed
+        create_release(debug_mode, debug_msg_mode, debug_usb_mode) # Create release if tests passed
         sys.exit(0)
     else:
         print_colored("SOME TESTS FAILED:", RED)

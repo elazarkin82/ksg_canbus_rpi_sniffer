@@ -41,12 +41,16 @@ int32_t ObdCanbusCommunication::open()
         return 0; // Already open
     }
 
+#ifdef DEBUG_USB
     printf("[ObdCanbusCommunication] Attempting to open CAN interface '%s'...\n", m_interfaceName);
+#endif
 
     m_socketFd = socket(PF_CAN, SOCK_RAW, CAN_RAW);
     if (m_socketFd < 0)
     {
+#ifdef DEBUG_USB
         fprintf(stderr, "[ObdCanbusCommunication] Error: socket creation failed for %s: %s\n", m_interfaceName, strerror(errno));
+#endif
         return -1;
     }
 
@@ -61,7 +65,9 @@ int32_t ObdCanbusCommunication::open()
     snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "%s", m_interfaceName);
     if (ioctl(m_socketFd, SIOCGIFINDEX, &ifr) < 0)
     {
+#ifdef DEBUG_USB
         fprintf(stderr, "[ObdCanbusCommunication] Error: interface '%s' not found (yet?): %s\n", m_interfaceName, strerror(errno));
+#endif
         ::close(m_socketFd);
         m_socketFd = -1;
         return -1;
@@ -74,13 +80,17 @@ int32_t ObdCanbusCommunication::open()
 
     if (bind(m_socketFd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
     {
+#ifdef DEBUG_USB
         fprintf(stderr, "[ObdCanbusCommunication] Error: bind failed for %s: %s\n", m_interfaceName, strerror(errno));
+#endif
         ::close(m_socketFd);
         m_socketFd = -1;
         return -1;
     }
 
+#ifdef DEBUG_USB
     fprintf(stdout, "[ObdCanbusCommunication] Successfully bound to interface '%s'\n", m_interfaceName);
+#endif
     return 0;
 }
 
@@ -137,6 +147,9 @@ int32_t ObdCanbusCommunication::read(uint8_t* buffer, size_t maxLen)
     else if (bytesRead == 0)
     {
         // Should not happen on CAN socket unless interface goes down
+#ifdef DEBUG_USB
+        fprintf(stderr, "[ObdCanbusCommunication] Interface %s went down (read 0)\n", m_interfaceName);
+#endif
         return -1;
     }
     else
@@ -146,6 +159,9 @@ int32_t ObdCanbusCommunication::read(uint8_t* buffer, size_t maxLen)
         {
             return 0; // Retry
         }
+#ifdef DEBUG_USB
+        fprintf(stderr, "[ObdCanbusCommunication] Read error on %s: %s\n", m_interfaceName, strerror(errno));
+#endif
         return -1;
     }
 }
@@ -175,6 +191,9 @@ int32_t ObdCanbusCommunication::write(const uint8_t* data, size_t length)
     }
     else
     {
+#ifdef DEBUG_USB
+        fprintf(stderr, "[ObdCanbusCommunication] Write error on %s: %s\n", m_interfaceName, strerror(errno));
+#endif
         return -1;
     }
 }

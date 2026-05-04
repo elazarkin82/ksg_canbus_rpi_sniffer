@@ -113,7 +113,9 @@ public:
     {
         if (!m_running) return;
 
+#ifdef DEBUG_USB
         printf("[UsbWatchdog] stop() initiated for %s...\n", m_canInterfaceName);
+#endif
         m_running = false;
         
         {
@@ -123,13 +125,19 @@ public:
 
         if (m_thread.joinable())
         {
+#ifdef DEBUG_USB
             printf("[UsbWatchdog] Joining thread for %s...\n", m_canInterfaceName);
+#endif
             m_thread.join();
+#ifdef DEBUG_USB
             printf("[UsbWatchdog] Thread joined for %s.\n", m_canInterfaceName);
+#endif
         }
         
         killExistingSlcand();
+#ifdef DEBUG_USB
         printf("[UsbWatchdog] stop() completed for %s.\n", m_canInterfaceName);
+#endif
     }
 
 private:
@@ -179,7 +187,9 @@ private:
                             pid = (pid_t)atoi(entry->d_name);
                             if (pid != getpid())
                             {
+#ifdef DEBUG_USB
                                 fprintf(stdout, "[UsbWatchdog] Killing existing slcand process %d for interface %s\n", (int)pid, m_canInterfaceName);
+#endif
                                 kill(pid, SIGKILL);
                                 waitpid(pid, &status, WNOHANG);
                             }
@@ -198,13 +208,17 @@ private:
         struct dirent *entry;
         bool found = false;
 
+#ifdef DEBUG_USB
         fprintf(stdout, "[UsbWatchdog] Looking for ttyACM device for USB %s...\n", m_usbUniqName);
+#endif
 
         snprintf(basePath, sizeof(basePath), "/sys/bus/usb/devices/%s", m_usbUniqName);
         dir = opendir(basePath);
         if (!dir)
         {
+#ifdef DEBUG_USB
             fprintf(stderr, "Error opening directory: %s\n", basePath);
+#endif
             return false;
         }
 
@@ -225,7 +239,9 @@ private:
                     {
                         if (strncmp(ttyEntry->d_name, "ttyACM", 6) == 0)
                         {
+#ifdef DEBUG_USB
                             fprintf(stdout, "[UsbWatchdog] Found ttyACM device: %s\n", ttyEntry->d_name);
+#endif
                             snprintf(outTty, outSize, "%s", ttyEntry->d_name);
                             found = true;
                             break;
@@ -235,7 +251,9 @@ private:
                 }
                 else
                 {
+#ifdef DEBUG_USB
                     fprintf(stderr, "[UsbWatchdog] Error opening tty directory: %s\n", ttyPath);
+#endif
                 }
             }
             if (found) break;
@@ -246,7 +264,9 @@ private:
 
     void watchdogLoop()
     {
+#ifdef DEBUG_USB
         fprintf(stdout, "[UsbWatchdog] Starting watchdog loop for %s...\n", m_canInterfaceName);
+#endif
         while (m_running)
         {
             char usbPath[256];
@@ -270,13 +290,17 @@ private:
             }
             else if (!netPresent)
             {
+#ifdef DEBUG_USB
                 fprintf(stdout, "[UsbWatchdog] Checking USB device %s, trying to map to %s...\n", m_usbUniqName, m_canInterfaceName);
+#endif
                 if (findTtyAcm(ttyName, sizeof(ttyName)))
                 {
                     char cmd[1024];
                     int res;
                     killExistingSlcand();
+#ifdef DEBUG_USB
                     fprintf(stdout, "[UsbWatchdog] USB device %s detected. Mapping to /dev/%s...\n", m_usbUniqName, ttyName);
+#endif
 
                     snprintf(cmd, sizeof(cmd), "slcand -f -o -c -s6 /dev/%s %s &", ttyName, m_canInterfaceName);
                     res = system(cmd);
@@ -290,7 +314,9 @@ private:
                     res = system(cmd);
                     (void)res;
 
+#ifdef DEBUG_USB
                     fprintf(stdout, "[UsbWatchdog] Interface %s is configured and up.\n", m_canInterfaceName);
+#endif
                 }
             }
 
@@ -299,7 +325,9 @@ private:
                 m_cv.wait_for(lock, std::chrono::milliseconds(100), [this] { return !m_running; });
             }
         }
+#ifdef DEBUG_USB
         fprintf(stdout, "[UsbWatchdog] Watchdog loop exited for %s.\n", m_canInterfaceName);
+#endif
     }
 
     char m_canInterfaceName[64];
