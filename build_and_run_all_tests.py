@@ -157,6 +157,7 @@ def main():
     debug_mode = False
     debug_msg_mode = False
     debug_usb_mode = False
+    build_only = False
 
     # Parse arguments
     for arg in sys.argv[1:]:
@@ -169,10 +170,13 @@ def main():
         elif arg == "debug_usb":
             debug_usb_mode = True
             print_colored("DEBUG USB MODE ENABLED", GREEN)
+        elif arg == "build_only":
+            build_only = True
+            print_colored("BUILD ONLY MODE ENABLED", GREEN)
 
     # 0. Check vcan0/1 (Prerequisite for emulator test)
     vcan_ready = check_vcan()
-    if not vcan_ready:
+    if not vcan_ready and not build_only:
         print_colored("WARNING: vcan0/vcan1 interface not found!", RED)
         print("Some tests (emulator) will fail or be skipped.")
         print("Please run: sudo ./emulators/setup_vcan.sh")
@@ -218,6 +222,11 @@ def main():
     if run_command(f"make -j{num_cores}") != 0:
         print_colored("Build failed!", RED)
         sys.exit(1)
+
+    if build_only:
+        print_colored("Build successful. Skipping tests as requested.", GREEN)
+        create_release(debug_mode, debug_msg_mode, debug_usb_mode)
+        sys.exit(0)
 
     # 5. Copy Python Test Scripts
     print("Copying test scripts...")
