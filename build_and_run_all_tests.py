@@ -175,12 +175,14 @@ def main():
             print_colored("BUILD ONLY MODE ENABLED", GREEN)
 
     # 0. Check vcan0/1 (Prerequisite for emulator test)
-    vcan_ready = check_vcan()
-    if not vcan_ready and not build_only:
-        print_colored("WARNING: vcan0/vcan1 interface not found!", RED)
-        print("Some tests (emulator) will fail or be skipped.")
-        print("Please run: sudo ./emulators/setup_vcan.sh")
-        print("----------------------------------------")
+    vcan_ready = False
+    if not build_only:
+        vcan_ready = check_vcan()
+        if not vcan_ready:
+            print_colored("WARNING: vcan0/vcan1 interface not found!", RED)
+            print("Some tests (emulator) will fail or be skipped.")
+            print("Please run: sudo ./emulators/setup_vcan.sh")
+            print("----------------------------------------")
 
     # 1. Create Build Directory
     if not os.path.exists(BUILD_DIR):
