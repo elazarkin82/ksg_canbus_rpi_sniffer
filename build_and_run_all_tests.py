@@ -188,6 +188,10 @@ def main():
 
     # 1. Create Build Directory
     absolute_build_dir = os.path.join(SCRIPT_DIR, BUILD_DIR)
+
+    if build_only and os.path.exists(absolute_build_dir):
+        shutil.rmtree(absolute_build_dir)
+
     if not os.path.exists(absolute_build_dir):
         print(f"Creating build directory: {absolute_build_dir}")
         os.makedirs(absolute_build_dir)
