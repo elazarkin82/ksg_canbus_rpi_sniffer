@@ -387,29 +387,33 @@ void Sniffer::handleStatusChanged(Source source, base::CommunicationStatus statu
     const char* ledName;
     utils::LedControllerUtil& ledUtil = utils::LedControllerUtil::getInstance();
 
-    if (!m_is_leds_feature_on) return;
-
-    ledName = (source == SOURCE_CAR_SYSTEM) ? m_systemLedName : m_computerLedName;
-
-    if (!ledUtil.exists(ledName)) return;
-
-    switch (status)
+    if (m_is_leds_feature_on)
     {
-    case base::STATUS_CONNECTED:
-        ledUtil.setTimer(ledName, 1500, 1500);
-        break;
+        ledName = (source == SOURCE_CAR_SYSTEM) ? m_systemLedName : m_computerLedName;
 
-    case base::STATUS_DISCONNECTED:
-        ledUtil.setTimer(ledName, 1000, 200);
-        break;
+        if (ledUtil.exists(ledName))
+        {
+            switch (status)
+            {
+            case base::STATUS_CONNECTED:
+                ledUtil.setTimer(ledName, 1500, 1500);
+                break;
 
-    case base::STATUS_ERROR:
-        ledUtil.setTimer(ledName, 200, 200);
-        break;
+            case base::STATUS_DISCONNECTED:
+                ledUtil.setTimer(ledName, 1000, 200);
+                break;
 
-    default:
-        break;
+            case base::STATUS_ERROR:
+                ledUtil.setTimer(ledName, 200, 200);
+                break;
+
+            default:
+                break;
+            }
+        }
     }
+    
+    // Future logic outside the LED block can be added here
 }
 
 void Sniffer::handleCanData(Source source, const uint8_t* data, size_t length)
