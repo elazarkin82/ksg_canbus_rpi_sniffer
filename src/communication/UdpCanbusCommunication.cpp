@@ -115,7 +115,7 @@ void UdpCanbusCommunication::processPacket(const uint8_t* data, size_t length)
                     }
                     else if (m_commandListener)
                     {
-                        m_commandListener->onCommandReceived(msg->command, msg->data, msg->data_size);
+                        m_commandListener->onCommandReceived(msg->command, msg->time_ms_from_start, msg->data, msg->data_size);
                     }
                 }
                 else

@@ -79,6 +79,7 @@ lib_client.client_send_raw_command.argtypes = [ctypes.c_void_p, ctypes.c_uint32,
 lib_client.client_read_message.argtypes = [
     ctypes.c_void_p, 
     ctypes.POINTER(ctypes.c_uint32), # command
+    ctypes.POINTER(ctypes.c_double), # time_ms_from_start
     ctypes.POINTER(ctypes.c_uint8),  # data
     ctypes.POINTER(ctypes.c_uint32), # len
     ctypes.c_int                     # timeout
@@ -98,11 +99,12 @@ def wait_for_message(client, can_id, timeout=2.0):
     start = time.time()
     
     command = ctypes.c_uint32()
+    time_ms_from_start = ctypes.c_double()
     length = ctypes.c_uint32()
     data = (ctypes.c_uint8 * 64)()
     
     while time.time() - start < timeout:
-        if lib_client.client_read_message(client, ctypes.byref(command), data, ctypes.byref(length), 100) > 0:
+        if lib_client.client_read_message(client, ctypes.byref(command), ctypes.byref(time_ms_from_start), data, ctypes.byref(length), 100) > 0:
             # Check if it's a log message
             if command.value == CMD_CAN_MSG_FROM_SYSTEM or command.value == CMD_CAN_MSG_FROM_COMPUTER:
                 # Parse can_frame (16 bytes)
@@ -194,11 +196,12 @@ def run_test():
         # Aggressive Flush
         print("Flushing queue...")
         command = ctypes.c_uint32()
+        time_ms_from_start = ctypes.c_double()
         length = ctypes.c_uint32()
         data_buf = (ctypes.c_uint8 * 64)()
         start_flush = time.time()
         while time.time() - start_flush < 2.0:
-            if lib_client.client_read_message(client, ctypes.byref(command), data_buf, ctypes.byref(length), 10) <= 0:
+            if lib_client.client_read_message(client, ctypes.byref(command), ctypes.byref(time_ms_from_start), data_buf, ctypes.byref(length), 10) <= 0:
                 break # Queue empty
         
         print("Verifying blockage...")

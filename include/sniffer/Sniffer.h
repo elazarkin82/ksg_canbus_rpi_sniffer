@@ -43,7 +43,7 @@ public:
     void setSystemCallback(ISystemCallback* callback);
 
     // --- ICommandListener Implementation (from External Service) ---
-    virtual void onCommandReceived(uint32_t command, const uint8_t* data, size_t length) override;
+    virtual void onCommandReceived(uint32_t command, double time_ms, const uint8_t* data, size_t length) override;
 
 private:
     // Internal listener to distinguish between sources

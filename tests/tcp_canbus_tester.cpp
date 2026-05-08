@@ -43,7 +43,9 @@ public:
 
 class MockCommandListener : public ICommandListener {
 public:
-    void onCommandReceived(uint32_t command, const uint8_t* data, size_t length) override {
+    // Updated signature to include time_ms
+    void onCommandReceived(uint32_t command, double time_ms, const uint8_t* data, size_t length) override {
+        (void)time_ms;
         m_receivedCount++;
         m_lastCommand = command;
         m_lastLength = length;
@@ -89,6 +91,7 @@ public:
         memset(&msg, 0, sizeof(msg));
         snprintf(msg.magic_key, 8, "%s", magic);
         msg.command = cmd;
+        msg.time_ms_from_start = 0; // Test default
         msg.data_size = len;
         if (len > 0 && len <= sizeof(msg.data)) {
             memcpy(msg.data, data, len);

@@ -155,7 +155,7 @@ public:
     }
 
     // --- ICommandListener (V1 Commands) ---
-    virtual void onCommandReceived(uint32_t command, const uint8_t* data, size_t length) override
+    virtual void onCommandReceived(uint32_t command, double time_ms, const uint8_t* data, size_t length) override
     {
 #ifdef DEBUG_MSG
         char ip[64] = {0};
@@ -233,14 +233,7 @@ private:
     std::condition_variable m_queueCond;
 };
 
-// Update onCommandReceived to match the new signature if I change the protocol header
-void SnifferClient::onCommandReceived(uint32_t command, const uint8_t* data, size_t length)
-{
-     // Will be updated if Interface changes
-}
-
 // --- C API Implementation ---
-
 extern "C" {
 
 void* client_create(const char* ip, uint16_t remote_port, uint16_t local_port, uint32_t keep_alive_interval_ms)

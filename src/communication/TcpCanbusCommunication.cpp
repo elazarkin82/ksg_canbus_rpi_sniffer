@@ -51,7 +51,6 @@ void TcpCanbusCommunication::processBuffer(const uint8_t* data, size_t length)
     }
 
     // Check for V1 Protocol ("v1.00")
-    // Note: Magic key is now 8 bytes, but we check first 5 to be safe
     if (strncmp((const char*)data, "v1.00", 5) == 0)
     {
         if (length <= sizeof(ExternalMessageV1))
@@ -70,7 +69,8 @@ void TcpCanbusCommunication::processBuffer(const uint8_t* data, size_t length)
                     }
                     else if (m_commandListener)
                     {
-                        m_commandListener->onCommandReceived(msg->command, msg->data, msg->data_size);
+                        // Updated call to onCommandReceived to include time_ms_from_start
+                        m_commandListener->onCommandReceived(msg->command, msg->time_ms_from_start, msg->data, msg->data_size);
                     }
                 }
                 else
