@@ -14,6 +14,7 @@ using namespace communication;
 // Internal structure for queue
 struct QueuedMessage {
     uint32_t command;
+    double time_ms;
     uint32_t len;
     uint8_t data[64]; // Max CAN FD payload
 };
@@ -79,6 +80,7 @@ public:
         memset(&msg, 0, sizeof(msg));
         strncpy(msg.magic_key, "v1.00", 8);
         msg.command = command_id;
+        msg.time_ms_from_start = 0; 
         msg.data_size = len;
         if (len > 0 && len <= sizeof(msg.data))
         {
@@ -91,7 +93,7 @@ public:
         updateLastSentTime();
     }
 
-    int readMessage(uint32_t* command, uint8_t* data, uint32_t* len, int timeout_ms)
+    int readMessage(uint32_t* command, double* time_ms, uint8_t* data, uint32_t* len, int timeout_ms)
     {
         std::unique_lock<std::mutex> lock(m_queueMutex);
         if (m_queue.empty())
@@ -108,6 +110,7 @@ public:
         m_queue.pop();
 
         if (command) *command = msg.command;
+        if (time_ms) *time_ms = msg.time_ms;
         if (len) *len = msg.len;
         if (data && msg.len > 0) memcpy(data, msg.data, msg.len);
 
@@ -131,6 +134,7 @@ public:
             // Let's use CMD_CANBUS_DATA for generic/unknown source
             QueuedMessage msg;
             msg.command = CMD_CANBUS_DATA;
+            msg.time_ms = 0;
             msg.len = length;
             if (length <= sizeof(msg.data)) memcpy(msg.data, data, length);
 
@@ -165,9 +169,7 @@ public:
         {
             QueuedMessage msg;
             msg.command = command;
-
-            // Payload is raw can_frame (16 bytes) or canfd_frame (72 bytes)
-            // We copy it as is
+            msg.time_ms = time_ms;
             msg.len = length;
             if (length <= sizeof(msg.data))
             {
@@ -231,6 +233,12 @@ private:
     std::condition_variable m_queueCond;
 };
 
+// Update onCommandReceived to match the new signature if I change the protocol header
+void SnifferClient::onCommandReceived(uint32_t command, const uint8_t* data, size_t length)
+{
+     // Will be updated if Interface changes
+}
+
 // --- C API Implementation ---
 
 extern "C" {
@@ -293,10 +301,10 @@ void client_send_raw_command(void* handle, uint32_t command_id, const uint8_t* p
 }
 
 // Updated API: Returns command ID and raw data
-int client_read_message(void* handle, uint32_t* command, uint8_t* data, uint32_t* len, int timeout_ms)
+int client_read_message(void* handle, uint32_t* command, double* time_ms, uint8_t* data, uint32_t* len, int timeout_ms)
 {
     if (!handle) return -1;
-    return ((SnifferClient*)handle)->readMessage(command, data, len, timeout_ms);
+    return ((SnifferClient*)handle)->readMessage(command, time_ms, data, len, timeout_ms);
 }
 
 CanFilterRule client_create_rule(uint32_t id, uint8_t action, uint8_t target,

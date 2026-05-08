@@ -71,12 +71,13 @@ void client_send_raw_command(void* handle, uint32_t command_id, const uint8_t* p
 /**
  * Reads a message from the receive queue.
  * @param command Pointer to store the command ID.
+ * @param time_ms Pointer to store the timestamp from start.
  * @param data Pointer to a buffer to store the payload (must be at least 64 bytes).
  * @param len Pointer to store the payload length.
  * @param timeout_ms Timeout in milliseconds.
  * @return 1 if message received, 0 on timeout, <0 on error.
  */
-int client_read_message(void* handle, uint32_t* command, uint8_t* data, uint32_t* len, int timeout_ms);
+int client_read_message(void* handle, uint32_t* command, double* time_ms, uint8_t* data, uint32_t* len, int timeout_ms);
 
 // --- Helpers ---
 

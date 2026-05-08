@@ -133,10 +133,11 @@ public:
     /**
      * Called when a command message is received.
      * @param command The command ID (e.g., CMD_CANBUS_TO_SYSTEM).
+     * @param time_ms The timestamp from start.
      * @param data Pointer to the command payload.
      * @param length Size of the payload.
      */
-    virtual void onCommandReceived(uint32_t command, const uint8_t* data, size_t length) = 0;
+    virtual void onCommandReceived(uint32_t command, double time_ms, const uint8_t* data, size_t length) = 0;
 };
 
 } // namespace communication

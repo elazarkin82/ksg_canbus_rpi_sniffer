@@ -158,7 +158,6 @@ namespace FilterEngine
 
         rule = id_lookup[masked_id];
         count = id_counts[masked_id];
-
         for (int i = 0; i < count; ++i, ++rule)
         {
             // Check direction
@@ -210,7 +209,6 @@ namespace FilterEngine
         return true; // No rule matched
     }
 } // namespace FilterEngine
-
 
 Sniffer::Sniffer(const SnifferParams& params)
     : m_systemListener(*this, Sniffer::SOURCE_CAR_SYSTEM),
@@ -513,8 +511,9 @@ void Sniffer::handleCanData(Source source, const uint8_t* data, size_t length)
     }
 }
 
-void Sniffer::onCommandReceived(uint32_t command, const uint8_t* data, size_t length)
+void Sniffer::onCommandReceived(uint32_t command, double time_ms, const uint8_t* data, size_t length)
 {
+    (void)time_ms;
     if (!m_running) return;
 
     // Debug print
