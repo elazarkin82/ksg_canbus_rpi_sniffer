@@ -13,6 +13,8 @@
    * **For Loops**: Variables used exclusively in for-loops can be declared within the loop statement (e.g., `for (int i = 0; ...)`).
    * **Header Includes**: Use standard C-style includes with the `.h` extension whenever possible (e.g., `<stdint.h>`, `<stdio.h>`), except for the allowed C++ components (`thread`, `mutex`, `chrono`).
 4. **Test Code Style**: Modern C++ (latest standards) is fully allowed and encouraged for all test-related code.
-5. **Infrastructure Preservation**: NEVER remove, comment out, or modify existing `printf`, `fprintf`, or any log statements unless explicitly instructed.
+5. **Infrastructure Preservation**: NEVER remove, comment out, or modify existing `printf`, `fprintf`, or any log statements unless explicitly instructed. Treat existing comments and infrastructure as "holy" - do not move or alter them.
 6. **No Magic Numbers**: Avoid hardcoding numbers.
 7. **Code Deduplication**: Extract repeating logic into dedicated private helper functions.
+8. **Minimalist Implementation**: Implement requests with the least amount of changes to existing signatures or structures. Change *only* what is absolutely necessary for the feature.
+9. **Pre-Coding Manifest**: Before performing any coding task, present a clear plan of the specific files and code blocks that will be modified.
