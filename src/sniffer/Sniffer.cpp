@@ -3,6 +3,7 @@
 #include "canbus_communication/ObdCanbusCommunication.h"
 #include "communication/UdpCanbusCommunication.h"
 #include "utils/LedControllerUtil.hpp"
+#include "utils/StatusManager.hpp"
 
 #include <stdio.h>
 #include <string.h>
@@ -473,6 +474,7 @@ void Sniffer::handleCanData(Source source, const uint8_t* data, size_t length)
             communication::ExternalMessageV1 msg;
             memset(&msg, 0, sizeof(msg));
             strncpy(msg.magic_key, "v1.00", 8);
+            msg.time_ms_from_start = utils::StatusManager::getInstance().get_time_ms_from_start();
 
             if (should_forward)
             {

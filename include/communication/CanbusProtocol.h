@@ -22,6 +22,7 @@ struct ExternalMessageV1
 {
     char magic_key[8];          // "v1.00" (8 bytes)
     uint32_t command;           // Command ID
+    double time_ms_from_start;  // Time in milliseconds since service start
     char pad[128];              // Reserved for future use
     uint32_t data_size;         // Size of the following data payload
     uint8_t data[64000];        // Fixed size payload buffer (64000 bytes)
