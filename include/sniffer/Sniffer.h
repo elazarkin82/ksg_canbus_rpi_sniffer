@@ -94,6 +94,7 @@ private:
     std::mutex m_mutex; // Protects shared state
 
     bool m_is_leds_feature_on;
+    bool m_externalServiceConnected;
 };
 
 } // namespace sniffer

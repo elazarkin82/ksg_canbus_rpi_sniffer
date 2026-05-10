@@ -218,7 +218,8 @@ Sniffer::Sniffer(const SnifferParams& params)
       m_externalServiceLogging(false),
       m_lastExternalMsgTime(std::chrono::steady_clock::now()),
       m_systemCallback(nullptr),
-      m_is_leds_feature_on(false)
+      m_is_leds_feature_on(false),
+      m_externalServiceConnected(false)
 {
     char sysInterfaceName[64];
     char compInterfaceName[64];
@@ -507,6 +508,7 @@ void Sniffer::handleCanData(Source source, const uint8_t* data, size_t length)
 
             size_t sendLen = communication::calculateExternalMessageV1Size(copyLen);
             m_externalService->send((const uint8_t*)&msg, sendLen);
+            // fprintf(stdout, "send ExternalMessageV1 to server (command=%d)\n", msg.command);
         }
     }
 }
@@ -515,6 +517,12 @@ void Sniffer::onCommandReceived(uint32_t command, double time_ms, const uint8_t*
 {
     (void)time_ms;
     if (!m_running) return;
+
+    if(!m_externalServiceConnected)
+    {
+        m_externalServiceConnected = true;
+        fprintf(stdout, "external server connected!\n");
+    }
 
     // Debug print
 #ifdef DEBUG
@@ -573,7 +581,7 @@ void Sniffer::watchdogLoop()
 {
     while (m_running)
     {
-        bool resetNeeded = false;
+        bool timeOutDetected = false;
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
         {
@@ -585,14 +593,16 @@ void Sniffer::watchdogLoop()
 
                 if (elapsed > 1000)
                 {
-                    resetNeeded = true;
+                    timeOutDetected = true;
                 }
             }
         }
 
-        if (resetNeeded)
+        if (timeOutDetected)
         {
             resetToDefault();
+            m_externalServiceConnected = false;
+            fprintf(stdout, "external server disconnected!\n");
         }
     }
 }

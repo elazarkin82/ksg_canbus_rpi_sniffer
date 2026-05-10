@@ -408,7 +408,7 @@ private:
             if (!m_running)
             {
                 // Connection is down (either never started, or dropped).
-                stop(); 
+                stop();
                 
                 if (!m_reconnectMode) break;
 
@@ -421,6 +421,10 @@ private:
                     {
                         std::this_thread::sleep_for(std::chrono::milliseconds(10));
                     }
+                }
+                else
+                {
+                    fprintf(stdout, "CommunicationObj connected!\n");
                 }
             }
             else
