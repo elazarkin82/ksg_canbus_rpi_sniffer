@@ -12,6 +12,7 @@ from gui.settings_dialog import SettingsDialog
 from gui.reverse_engineering import ReverseEngineeringPanel
 from gui.obd2_panel import OBD2Panel # New import
 from gui.cockpit_panel import CockpitPanel # New import
+from gui.status_window import SnifferStatusWindow
 
 # Command IDs (Must match C++ header)
 CMD_CAN_MSG_FROM_SYSTEM = 0x2001
@@ -45,6 +46,7 @@ class MainApp:
         self.logging_active = False
         self.ui_connected_state = False # Track UI state for logging
         self.last_status_print_time = 0 # To limit console spam
+        self.status_window = None
         
         self.debug_var = tk.BooleanVar(value=False)
 
@@ -63,6 +65,10 @@ class MainApp:
         view_menu = tk.Menu(menubar, tearoff=0)
         view_menu.add_checkbutton(label="Debug Mode", onvalue=True, offvalue=False, variable=self.debug_var, command=self.toggle_debug)
         menubar.add_cascade(label="View", menu=view_menu)
+
+        sniffer_menu = tk.Menu(menubar, tearoff=0)
+        sniffer_menu.add_command(label="Sniffer Status", command=self.show_sniffer_status)
+        menubar.add_cascade(label="Sniffer", menu=sniffer_menu)
         
         self.root.config(menu=menubar)
 
@@ -97,6 +103,15 @@ class MainApp:
 
     def open_settings(self):
         SettingsDialog(self.root, self.settings_manager)
+
+    def show_sniffer_status(self):
+        if self.status_window is None:
+            self.status_window = SnifferStatusWindow(self.root, self)
+        else:
+            self.status_window.lift()
+
+    def on_status_window_close(self):
+        self.status_window = None
         
     def toggle_debug(self):
         backend.udp_client.DEBUG_MODE = self.debug_var.get()
@@ -197,11 +212,13 @@ class MainApp:
                     print(f"[Python] Connection status changed: {status_text}")
                     self.root.after(0, lambda t=status_text, c=color: self.lbl_status.config(text=t, foreground=c))
                 
-                # Print sniffer status every 2 seconds
-                if is_connected and (now - self.last_status_print_time > 2.0):
+                # Print sniffer status every 0.5 seconds
+                if is_connected and (now - self.last_status_print_time > 0.5):
                     status_msg = self.client.get_sniffer_status()
                     if status_msg:
-                        print(f"[Python] Sniffer Status:\n{status_msg}")
+                        # Update status window if it exists
+                        if self.status_window:
+                            self.root.after(0, self.status_window.update_status, status_msg)
                     self.last_status_print_time = now
                 
                 last_conn_check = now
