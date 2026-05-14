@@ -70,10 +70,11 @@ class UdpClient:
 
         self.lib.client_set_filters.argtypes = [ctypes.c_void_p, ctypes.POINTER(CanFilterRule), ctypes.c_size_t]
 
-        # Updated API
+        # Updated API with time_ms support
         self.lib.client_read_message.argtypes = [
             ctypes.c_void_p, 
             ctypes.POINTER(ctypes.c_uint32), # command
+            ctypes.POINTER(ctypes.c_double), # time_ms
             ctypes.POINTER(ctypes.c_uint8),  # data
             ctypes.POINTER(ctypes.c_uint32), # len
             ctypes.c_int                     # timeout
@@ -122,14 +123,15 @@ class UdpClient:
 
     def read_message(self, timeout_ms=100):
         command = ctypes.c_uint32()
+        time_ms = ctypes.c_double()
         length = ctypes.c_uint32()
-        data = (ctypes.c_uint8 * 64)() # Max buffer
+        data = (ctypes.c_uint8 * 72)() # Safe buffer size for canfd_frame
         
-        res = self.lib.client_read_message(self.handle, ctypes.byref(command), data, ctypes.byref(length), timeout_ms)
+        res = self.lib.client_read_message(self.handle, ctypes.byref(command), ctypes.byref(time_ms), data, ctypes.byref(length), timeout_ms)
         
         if res > 0:
             if DEBUG_MODE:
-                print(f"[Python] read_message: res={res}, command=0x{command.value:X}, length={length.value}")
+                print(f"[Python] read_message: res={res}, command=0x{command.value:X}, time={time_ms.value}, length={length.value}")
             
             # Return a dict or object with command and data
             # For compatibility with existing code, we might want to return an object with similar fields
@@ -141,6 +143,7 @@ class UdpClient:
             
             msg = Message()
             msg.command = command.value
+            msg.time_ms = time_ms.value
             msg.data = bytes(data[:length.value])
             
             # If it's a CAN frame, parse it for convenience
