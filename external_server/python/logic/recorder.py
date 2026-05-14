@@ -14,13 +14,14 @@ class Recorder:
         self.messages = []
         self.limit_reached = False
 
-    def add_message(self, timestamp, direction, can_id, data):
+    def add_message(self, timestamp, direction, can_id, data, time_ms=0.0):
         if len(self.messages) >= self.max_messages:
             self.limit_reached = True
             return False # Indicate failure due to limit
             
         self.messages.append({
             "timestamp": timestamp,
+            "time_ms": time_ms,
             "direction": direction,
             "can_id": hex(can_id),
             "data": data.hex() if isinstance(data, bytes) else str(data)
@@ -36,7 +37,7 @@ class Recorder:
         
         try:
             with open(filename, 'w', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=["timestamp", "direction", "can_id", "data"])
+                writer = csv.DictWriter(f, fieldnames=["timestamp", "time_ms", "direction", "can_id", "data"])
                 writer.writeheader()
                 writer.writerows(self.messages)
             return True

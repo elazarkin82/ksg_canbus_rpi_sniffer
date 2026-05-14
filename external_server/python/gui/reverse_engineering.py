@@ -148,8 +148,9 @@ class ReverseEngineeringPanel(ttk.Frame):
                 reader = csv.DictReader(f)
                 count = 0
                 for row in reader:
-                    # row format: timestamp, direction, can_id, data
+                    # row format: timestamp, time_ms, direction, can_id, data
                     timestamp = float(row['timestamp'])
+                    time_ms = float(row.get('time_ms', 0.0))
                     direction = row['direction']
                     can_id = int(row['can_id'], 16)
                     # Convert hex string data back to bytes
@@ -158,12 +159,13 @@ class ReverseEngineeringPanel(ttk.Frame):
                     # Add to local buffer and update UI
                     self.display_buffer.append({
                         'timestamp': timestamp,
+                        'time_ms': time_ms,
                         'direction': direction,
                         'can_id': can_id,
                         'data': data
                     })
                     # Add to recorder so it can be saved again if needed
-                    self.recorder.add_message(timestamp, direction, can_id, data)
+                    self.recorder.add_message(timestamp, direction, can_id, data, time_ms)
                     self._update_ui_row(timestamp, direction, can_id, data)
                     count += 1
                     
@@ -477,10 +479,10 @@ class ReverseEngineeringPanel(ttk.Frame):
         for msg in self.display_buffer:
             self._update_ui_row(msg['timestamp'], msg['direction'], msg['can_id'], msg['data'])
 
-    def on_message(self, timestamp, direction, can_id, data):
+    def on_message(self, timestamp, direction, can_id, data, time_ms=0.0):
         # 1. Add to recorder (for file saving)
         # It handles the max limit internally
-        if not self.recorder.add_message(timestamp, direction, can_id, data):
+        if not self.recorder.add_message(timestamp, direction, can_id, data, time_ms):
             # Limit reached, UI handler in main.py will detect this and stop logging
             return
         
@@ -490,6 +492,7 @@ class ReverseEngineeringPanel(ttk.Frame):
         # 2. Add to local buffer (for re-grouping)
         self.display_buffer.append({
             'timestamp': timestamp,
+            'time_ms': time_ms,
             'direction': direction,
             'can_id': can_id,
             'data': data

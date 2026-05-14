@@ -224,16 +224,17 @@ class MainApp:
                             self.profile_manager.update_control_base_payload(ctrl_name, msg.frame_data.hex())
 
                     # Schedule updates on the main thread
-                    self.root.after(0, self.dispatch_message, time.time(), direction, msg.can_id, msg.frame_data)
+                    # msg.time_ms is the time from sniffer start
+                    self.root.after(0, self.dispatch_message, time.time(), direction, msg.can_id, msg.frame_data, msg.time_ms)
 
-    def dispatch_message(self, timestamp, direction, can_id, frame_data):
+    def dispatch_message(self, timestamp, direction, can_id, frame_data, time_ms=0.0):
         # Check if limit was reached during dispatch
         if self.logging_active and self.rev_eng_panel.recorder.limit_reached:
             self.force_stop_logging_due_to_limit()
             return
 
         # Dispatch to all interested panels
-        self.rev_eng_panel.on_message(timestamp, direction, can_id, frame_data)
+        self.rev_eng_panel.on_message(timestamp, direction, can_id, frame_data, time_ms)
         if self.obd2_panel:
             self.obd2_panel.on_message(can_id, frame_data)
         self.cockpit_panel.on_message(can_id, frame_data)

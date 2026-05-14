@@ -169,14 +169,16 @@ class DecoderEditorDialog(tk.Toplevel):
         bottom_pane = ttk.LabelFrame(paned, text="Live History Preview", padding="5")
         paned.add(bottom_pane, weight=1) # Expand vertically
         
-        columns = ("Time", "Dir", "Data", "Decoded")
+        columns = ("Time", "SnifferMS", "Dir", "Data", "Decoded")
         self.tree_history = ttk.Treeview(bottom_pane, columns=columns, show="headings")
-        self.tree_history.heading("Time", text="Time")
+        self.tree_history.heading("Time", text="PC Time")
+        self.tree_history.heading("SnifferMS", text="Sniffer MS")
         self.tree_history.heading("Dir", text="Dir")
         self.tree_history.heading("Data", text="Raw Data")
         self.tree_history.heading("Decoded", text="Live Decoded Result")
         
         self.tree_history.column("Time", width=100)
+        self.tree_history.column("SnifferMS", width=100)
         self.tree_history.column("Dir", width=60)
         self.tree_history.column("Data", width=200)
         self.tree_history.column("Decoded", width=400)
@@ -249,9 +251,11 @@ class DecoderEditorDialog(tk.Toplevel):
                 
             # Convert timestamp
             time_str = time.strftime('%H:%M:%S', time.localtime(msg['timestamp'])) + f".{int(msg['timestamp']%1*1000):03d}"
+            time_ms_val = msg.get('time_ms', 0.0)
                 
             self.tree_history.insert("", tk.END, values=(
                 time_str,
+                f"{time_ms_val:.1f}",
                 msg['direction'],
                 msg['data'],
                 decoded_str
