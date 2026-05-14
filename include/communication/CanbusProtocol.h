@@ -111,7 +111,7 @@ struct KeepAliveToSnifferPayload
 struct KeepAliveFromSnifferPayload
 {
     uint8_t logging_active;     // 0 = OFF, 1 = ON
-    char status_text[256];      // From StatusManager
+    char status_text[1024];     // From StatusManager
     uint8_t reserved[31];
 };
 

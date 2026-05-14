@@ -564,6 +564,10 @@ void Sniffer::onCommandReceived(uint32_t command, double time_ms, const uint8_t*
         {
             const communication::KeepAliveToSnifferPayload* payload = (const communication::KeepAliveToSnifferPayload*)data;
             bool requestedLogging = (payload->logging_requested != 0);
+            // Respond back with status
+            communication::ExternalMessageV1 response;
+            communication::KeepAliveFromSnifferPayload respPayload;
+            size_t sendLen;
             
             if (requestedLogging != m_externalServiceLogging)
             {
@@ -571,10 +575,6 @@ void Sniffer::onCommandReceived(uint32_t command, double time_ms, const uint8_t*
                 setLoggingState(requestedLogging);
             }
 
-            // Respond back with status
-            communication::ExternalMessageV1 response;
-            communication::KeepAliveFromSnifferPayload respPayload;
-            
             memset(&response, 0, sizeof(response));
             strncpy(response.magic_key, "v1.00", 8);
             response.command = communication::CMD_KEEP_ALIVE_FROM_SNIFFER;
@@ -587,7 +587,7 @@ void Sniffer::onCommandReceived(uint32_t command, double time_ms, const uint8_t*
             response.data_size = sizeof(respPayload);
             memcpy(response.data, &respPayload, sizeof(respPayload));
 
-            size_t sendLen = communication::calculateExternalMessageV1Size(sizeof(respPayload));
+            sendLen = communication::calculateExternalMessageV1Size(sizeof(respPayload));
             m_externalService->send((const uint8_t*)&response, sendLen);
         }
     }

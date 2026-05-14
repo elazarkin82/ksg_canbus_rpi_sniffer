@@ -16,7 +16,7 @@ struct QueuedMessage {
     uint32_t command;
     double time_ms;
     uint32_t len;
-    uint8_t data[64]; // Max CAN FD payload
+    uint8_t data[72]; // Max CAN FD payload
 };
 
 class SnifferClient : public base::ICommunicationListener, public communication::ICommandListener
@@ -89,8 +89,7 @@ public:
     {
         std::lock_guard<std::mutex> lock(m_statusMutex);
         if (!out_buf || buf_size == 0) return 0;
-        strncpy(out_buf, m_lastSnifferStatus, buf_size - 1);
-        out_buf[buf_size - 1] = '\0';
+        snprintf(out_buf, buf_size, "%s", m_lastSnifferStatus);
         return 1;
     }
 
@@ -101,6 +100,8 @@ public:
 #endif
 
         ExternalMessageV1 msg;
+        size_t send_len;
+
         memset(&msg, 0, sizeof(msg));
         strncpy(msg.magic_key, "v1.00", 8);
         msg.command = command_id;
@@ -111,7 +112,7 @@ public:
             memcpy(msg.data, payload, len);
         }
 
-        size_t send_len = calculateExternalMessageV1Size(len);
+        send_len = calculateExternalMessageV1Size(len);
         m_udp->send((const uint8_t*)&msg, send_len);
 
         updateLastSentTime();
@@ -120,6 +121,8 @@ public:
     int readMessage(uint32_t* command, double* time_ms, uint8_t* data, uint32_t* len, int timeout_ms)
     {
         std::unique_lock<std::mutex> lock(m_queueMutex);
+        QueuedMessage msg;
+
         if (m_queue.empty())
         {
             if (m_queueCond.wait_for(lock, std::chrono::milliseconds(timeout_ms)) == std::cv_status::timeout)
@@ -130,7 +133,7 @@ public:
 
         if (m_queue.empty()) return 0;
 
-        QueuedMessage msg = m_queue.front();
+        msg = m_queue.front();
         m_queue.pop();
 
         if (command) *command = msg.command;
@@ -196,8 +199,7 @@ public:
             {
                 const KeepAliveFromSnifferPayload* payload = (const KeepAliveFromSnifferPayload*)data;
                 std::lock_guard<std::mutex> lock(m_statusMutex);
-                strncpy(m_lastSnifferStatus, payload->status_text, sizeof(m_lastSnifferStatus) - 1);
-                m_lastSnifferStatus[sizeof(m_lastSnifferStatus) - 1] = '\0';
+                snprintf(m_lastSnifferStatus, sizeof(m_lastSnifferStatus), "%s", payload->status_text);
             }
             return;
         }
@@ -292,7 +294,7 @@ private:
     std::atomic<uint64_t> m_lastRecvTime;
     
     std::atomic<bool> m_desiredLoggingState;
-    char m_lastSnifferStatus[256];
+    char m_lastSnifferStatus[1024];
     std::mutex m_statusMutex;
 
     std::queue<QueuedMessage> m_queue;
@@ -346,10 +348,10 @@ void client_send_log_enable(void* handle, bool enable)
 
 void client_send_injection(void* handle, uint8_t target, uint32_t can_id, const uint8_t* data, uint8_t len)
 {
+    struct can_frame frame;
     if (!handle) return;
     uint32_t cmd = (target == 1) ? CMD_CANBUS_TO_SYSTEM : CMD_CANBUS_TO_CAR;
 
-    struct can_frame frame;
     memset(&frame, 0, sizeof(frame));
     frame.can_id = can_id;
     frame.can_dlc = len > 8 ? 8 : len;
@@ -360,8 +362,9 @@ void client_send_injection(void* handle, uint8_t target, uint32_t can_id, const 
 
 void client_set_filters(void* handle, const CanFilterRule* rules, size_t count)
 {
+    size_t size;
     if (!handle) return;
-    size_t size = count * sizeof(CanFilterRule);
+    size = count * sizeof(CanFilterRule);
     ((SnifferClient*)handle)->sendRawCommand(CMD_SET_FILTERS, (const uint8_t*)rules, size);
 }
 

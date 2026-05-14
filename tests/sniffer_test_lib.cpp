@@ -13,9 +13,14 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <iomanip>
 
 using namespace sniffer;
 using namespace communication;
+
+// --- Constants for Color Prints ---
+const char* RED = "\033[1;31m";
+const char* RESET = "\033[0m";
 
 // --- Helper Functions ---
 
@@ -100,6 +105,7 @@ void send_udp_command(uint32_t cmd, const void* data, size_t len, int port) {
     memset(&msg, 0, sizeof(msg));
     strncpy(msg.magic_key, "v1.00", 8);
     msg.command = cmd;
+    msg.time_ms_from_start = 0;
     msg.data_size = len;
     if (len > 0) memcpy(msg.data, data, len);
 
@@ -118,7 +124,7 @@ bool test_passthrough(int s_sys, int s_comp) {
         std::cout << " -> PASSED" << std::endl;
         return true;
     }
-    std::cout << " -> FAILED" << std::endl;
+    std::cout << RED << " -> FAILED: RPM (0x100) was not received on computer interface" << RESET << std::endl;
     return false;
 }
 
@@ -132,17 +138,27 @@ bool test_drop_rule(int s_sys, int s_comp, int port) {
     rule.action_type = 1; // DROP
     rule.target = 0; // BOTH (or TO_CAR)
 
+    std::cout << "[DEBUG-TEST] Sending DROP command for 0x200 to port " << port << std::endl;
     send_udp_command(CMD_SET_FILTERS, &rule, sizeof(rule), port);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    // Give some time for the command to be processed and for any transit frames to pass
+    std::this_thread::sleep_for(std::chrono::milliseconds(250));
 
-    flush_socket(s_comp); // Clear old messages
+    std::cout << "[DEBUG-TEST] Flushing computer socket before check..." << std::endl;
+    flush_socket(s_comp); 
 
     // Check if 0x200 is received on vcan1
-    if (!read_can_frame(s_comp, 0x200, NULL, 1000)) {
+    uint8_t data[8];
+    if (!read_can_frame(s_comp, 0x200, data, 1000)) {
         std::cout << " -> PASSED (Frame blocked)" << std::endl;
         return true;
     }
-    std::cout << " -> FAILED (Frame received)" << std::endl;
+    
+    std::cout << RED << " -> FAILED: Speed (0x200) was received despite DROP rule" << RESET << std::endl;
+    std::cout << "[DEBUG-TEST] Frame Data: ";
+    for(int i=0; i<8; ++i) std::cout << std::hex << std::setw(2) << std::setfill('0') << (int)data[i] << " ";
+    std::cout << std::dec << std::endl;
+    
     return false;
 }
 
@@ -168,9 +184,9 @@ bool test_modify_rule(int s_sys, int s_comp, int port) {
             std::cout << " -> PASSED (Data modified)" << std::endl;
             return true;
         }
-        std::cout << " -> FAILED (Data: " << std::hex << (int)data[0] << ")" << std::endl;
+        std::cout << RED << " -> FAILED: Data was not modified (Byte 0: 0x" << std::hex << (int)data[0] << ")" << RESET << std::endl;
     } else {
-        std::cout << " -> FAILED (Frame not received)" << std::endl;
+        std::cout << RED << " -> FAILED: RPM (0x100) frame was not received during MODIFY test" << RESET << std::endl;
     }
     return false;
 }
@@ -182,13 +198,15 @@ extern "C" int run_all_sniffer_tests() {
 
     // 1. Setup Sniffer
     SnifferParams params;
+    memset(&params, 0, sizeof(params)); // Ensure clean struct
     strncpy(params.car_system_can_name, "vcan0", 16);
     strncpy(params.car_computer_can_name, "vcan1", 16);
     params.external_service_port = 9095;
+    params.external_client_port = 0; // Use ephemeral or explicit port
 
     Sniffer sniffer(params);
     if (!sniffer.start()) {
-        std::cerr << "Failed to start Sniffer" << std::endl;
+        std::cerr << RED << "ERROR: Failed to start Sniffer" << RESET << std::endl;
         return 1;
     }
 
@@ -196,7 +214,9 @@ extern "C" int run_all_sniffer_tests() {
     int s_sys = open_can_socket("vcan0");
     int s_comp = open_can_socket("vcan1");
     if (s_sys < 0 || s_comp < 0) {
-        std::cerr << "Failed to open CAN sockets" << std::endl;
+        std::cerr << RED << "ERROR: Failed to open CAN sockets (vcan0/vcan1)" << RESET << std::endl;
+        if (s_sys >= 0) close(s_sys);
+        if (s_comp >= 0) close(s_comp);
         return 1;
     }
 
@@ -214,6 +234,11 @@ extern "C" int run_all_sniffer_tests() {
     close(s_sys);
     close(s_comp);
 
-    std::cout << "=== Tests Finished: " << (all_passed ? "PASSED" : "FAILED") << " ===" << std::endl;
+    if (!all_passed) {
+        std::cout << RED << "=== Tests Finished: SOME TESTS FAILED === " << RESET << std::endl;
+    } else {
+        std::cout << "=== Tests Finished: PASSED ===" << std::endl;
+    }
+    
     return all_passed ? 0 : 1;
 }
