@@ -146,11 +146,6 @@ namespace FilterEngine
 
         masked_id = can_id & 0x7FF; // Extract Standard ID
 
-        if (masked_id == 0x200) {
-            // Debug print for 0x200
-            // printf("[FilterEngine] Processing 0x200. Rules count: %d\n", id_counts[masked_id]);
-        }
-
         if (masked_id >= 2048 || id_counts[masked_id] == 0)
         {
             return true; // PASS
