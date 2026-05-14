@@ -66,6 +66,7 @@ private:
     void handleStatusChanged(Source source, base::CommunicationStatus status);
     void watchdogLoop();
     void resetToDefault();
+    void setLoggingState(bool enable);
 
     // Configuration strings
     char m_systemCanConfig[64];

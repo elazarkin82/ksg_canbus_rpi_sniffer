@@ -109,13 +109,15 @@ void UdpCanbusCommunication::processPacket(const uint8_t* data, size_t length)
 
                 if (msg->data_size <= sizeof(ExternalMessageV1::data) && length >= calculateExternalMessageV1Size(msg->data_size))
                 {
+                    // Prioritize Command Listener for all V1 messages
+                    if (m_commandListener)
+                    {
+                        m_commandListener->onCommandReceived(msg->command, msg->time_ms_from_start, msg->data, msg->data_size);
+                    }
+
                     if (msg->command == CMD_CANBUS_DATA)
                     {
                         m_targetListener.onDataReceived(msg->data, msg->data_size);
-                    }
-                    else if (m_commandListener)
-                    {
-                        m_commandListener->onCommandReceived(msg->command, msg->time_ms_from_start, msg->data, msg->data_size);
                     }
                 }
                 else

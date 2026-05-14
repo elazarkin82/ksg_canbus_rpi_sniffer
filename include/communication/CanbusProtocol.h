@@ -95,6 +95,26 @@ struct CanFilterRule
     uint8_t modification_data[8];
     uint8_t modification_mask[8];
 };
+
+/**
+ * @brief Payload for Keep-Alive message to Sniffer.
+ */
+struct KeepAliveToSnifferPayload
+{
+    uint8_t logging_requested;  // 0 = OFF, 1 = ON
+    uint8_t reserved[31];
+};
+
+/**
+ * @brief Payload for Keep-Alive response from Sniffer.
+ */
+struct KeepAliveFromSnifferPayload
+{
+    uint8_t logging_active;     // 0 = OFF, 1 = ON
+    char status_text[256];      // From StatusManager
+    uint8_t reserved[31];
+};
+
 #pragma pack(pop)
 
 // Command IDs (for V1 protocol)
@@ -105,12 +125,14 @@ static const uint32_t CMD_EXTERNAL_SERVICE_LOGGING_ON = 0x1004;
 static const uint32_t CMD_EXTERNAL_SERVICE_LOGGING_OFF = 0x1005;
 static const uint32_t CMD_SET_FILTERS = 0x1006;      // Set/Replace all filter rules
 static const uint32_t CMD_SET_PARAMS = 0x1007;       // Set configuration parameters
+static const uint32_t CMD_KEEP_ALIVE_TO_SNIFFER = 0x1008;
 
 // Log Commands (From Sniffer to External Server)
 static const uint32_t CMD_CAN_MSG_FROM_SYSTEM = 0x2001; // Log: Message originated from System
 static const uint32_t CMD_CAN_MSG_FROM_COMPUTER = 0x2002; // Log: Message originated from Computer
 static const uint32_t CMD_CAN_MSG_BLOCKED_FROM_SYSTEM = 0x2003; // Log: Blocked message from System
 static const uint32_t CMD_CAN_MSG_BLOCKED_FROM_COMPUTER = 0x2004; // Log: Blocked message from Computer
+static const uint32_t CMD_KEEP_ALIVE_FROM_SNIFFER = 0x2005;
 
 // Filter Target Constants
 static const uint8_t FILTER_TARGET_BOTH = 0;

@@ -423,6 +423,7 @@ void Sniffer::handleCanData(Source source, const uint8_t* data, size_t length)
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_lastExternalMsgTime = std::chrono::steady_clock::now();
+        fprintf(stdout, "[Sniffer] Raw data received from external source (length: %zu)\n", length);
     }
     else
     {
@@ -515,8 +516,15 @@ void Sniffer::handleCanData(Source source, const uint8_t* data, size_t length)
 
 void Sniffer::onCommandReceived(uint32_t command, double time_ms, const uint8_t* data, size_t length)
 {
+    char senderIp[64];
+    uint16_t senderPort;
+
     (void)time_ms;
     if (!m_running) return;
+
+    // Log received command and sender info
+    m_externalService->getLastSenderInfo(senderIp, sizeof(senderIp), &senderPort);
+    fprintf(stdout, "[Sniffer] Command 0x%X received from %s:%d\n", command, senderIp, senderPort);
 
     if(!m_externalServiceConnected)
     {
@@ -549,20 +557,54 @@ void Sniffer::onCommandReceived(uint32_t command, double time_ms, const uint8_t*
     {
         m_carComputerCan->send(data, length);
     }
+    else if (command == communication::CMD_KEEP_ALIVE_TO_SNIFFER)
+    {
+        // Handle Keep-alive with state sync
+        if (length >= sizeof(communication::KeepAliveToSnifferPayload))
+        {
+            const communication::KeepAliveToSnifferPayload* payload = (const communication::KeepAliveToSnifferPayload*)data;
+            bool requestedLogging = (payload->logging_requested != 0);
+            
+            if (requestedLogging != m_externalServiceLogging)
+            {
+                fprintf(stdout, "[Sniffer] Syncing logging state to: %s\n", requestedLogging ? "ON" : "OFF");
+                setLoggingState(requestedLogging);
+            }
+
+            // Respond back with status
+            communication::ExternalMessageV1 response;
+            communication::KeepAliveFromSnifferPayload respPayload;
+            
+            memset(&response, 0, sizeof(response));
+            strncpy(response.magic_key, "v1.00", 8);
+            response.command = communication::CMD_KEEP_ALIVE_FROM_SNIFFER;
+            response.time_ms_from_start = utils::StatusManager::getInstance().get_time_ms_from_start();
+            
+            memset(&respPayload, 0, sizeof(respPayload));
+            respPayload.logging_active = m_externalServiceLogging ? 1 : 0;
+            utils::StatusManager::getInstance().get_status(respPayload.status_text, sizeof(respPayload.status_text));
+            
+            response.data_size = sizeof(respPayload);
+            memcpy(response.data, &respPayload, sizeof(respPayload));
+
+            size_t sendLen = communication::calculateExternalMessageV1Size(sizeof(respPayload));
+            m_externalService->send((const uint8_t*)&response, sendLen);
+        }
+    }
     else if (command == communication::CMD_CANBUS_DATA)
     {
         // Keep-alive
     }
     else if (command == communication::CMD_EXTERNAL_SERVICE_LOGGING_ON)
     {
-        m_externalServiceLogging = true;
+        setLoggingState(true);
 #ifdef DEBUG
         printf("External Service Logging ON\n");
 #endif
     }
     else if (command == communication::CMD_EXTERNAL_SERVICE_LOGGING_OFF)
     {
-        m_externalServiceLogging = false;
+        setLoggingState(false);
 #ifdef DEBUG
         printf("External Service Logging OFF\n");
 #endif
@@ -577,6 +619,15 @@ void Sniffer::onCommandReceived(uint32_t command, double time_ms, const uint8_t*
     }
 }
 
+void Sniffer::setLoggingState(bool enable)
+{
+    if (m_externalServiceLogging != enable)
+    {
+        m_externalServiceLogging = enable;
+        fprintf(stdout, "[Sniffer] Logging set to: %s\n", enable ? "ON" : "OFF");
+    }
+}
+
 void Sniffer::watchdogLoop()
 {
     while (m_running)
@@ -586,12 +637,13 @@ void Sniffer::watchdogLoop()
 
         {
             std::lock_guard<std::mutex> lock(m_mutex);
-            if (m_externalServiceLogging)
+            // FIX: Watchdog should monitor if connected, regardless of logging state
+            if (m_externalServiceConnected)
             {
                 std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
                 int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastExternalMsgTime).count();
 
-                if (elapsed > 1000)
+                if (elapsed > 1500) // Slightly more than standard 1000ms to allow jitter
                 {
                     timeOutDetected = true;
                 }
@@ -602,21 +654,17 @@ void Sniffer::watchdogLoop()
         {
             resetToDefault();
             m_externalServiceConnected = false;
-            fprintf(stdout, "external server disconnected!\n");
+            fprintf(stdout, "external server disconnected! (Timeout)\n");
         }
     }
 }
 
 void Sniffer::resetToDefault()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    if (m_externalServiceLogging)
-    {
-        m_externalServiceLogging = false;
+    setLoggingState(false);
 #ifdef DEBUG
-        printf("Timeout: Resetting Logging to OFF\n");
+    printf("Timeout: Resetting Logging to OFF\n");
 #endif
-    }
 }
 
 } // namespace sniffer

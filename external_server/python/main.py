@@ -43,6 +43,8 @@ class MainApp:
         self.client = None
         self.running = False
         self.logging_active = False
+        self.ui_connected_state = False # Track UI state for logging
+        self.last_status_print_time = 0 # To limit console spam
         
         self.debug_var = tk.BooleanVar(value=False)
 
@@ -104,6 +106,7 @@ class MainApp:
         if not self.client:
             try:
                 s = self.settings_manager.settings
+                print(f"[Python] Attempting to connect to {s['sniffer_ip']}:{s['sniffer_port']}...")
                 self.client = UdpClient(
                     ip=s["sniffer_ip"],
                     remote_port=int(s["sniffer_port"]),
@@ -112,11 +115,13 @@ class MainApp:
                 )
                 
                 if self.client.start():
-                    self.lbl_status.config(text="Connected", foreground="green")
+                    print("[Python] Client started. Waiting for data/keep-alive...")
+                    self.lbl_status.config(text="Connecting...", foreground="orange")
                     self.btn_connect.config(text="Disconnect")
                     self.btn_log.config(state=tk.NORMAL, text="Start Logging")
                     self.logging_active = False
                     self.running = True
+                    self.ui_connected_state = False
                     
                     # Create OBD2 panel now that we have a client
                     if not self.obd2_panel:
@@ -125,17 +130,20 @@ class MainApp:
                     
                     threading.Thread(target=self.rx_loop, daemon=True).start()
                 else:
+                    print("[Python] Failed to start UDP client.")
                     self.lbl_status.config(text="Failed to start", foreground="red")
             except Exception as e:
-                print(f"Error: {e}")
+                print(f"[Python] Error during connection: {e}")
                 self.lbl_status.config(text=f"Error: {e}", foreground="red")
         else:
+            print("[Python] Disconnecting...")
             self.running = False
             self.logging_active = False
             if self.obd2_panel:
                 self.obd2_panel.manager.stop_polling()
             self.client.close()
             self.client = None
+            self.ui_connected_state = False
             self.lbl_status.config(text="Disconnected", foreground="red")
             self.btn_connect.config(text="Connect")
             self.btn_log.config(state=tk.DISABLED, text="Start Logging")
@@ -143,6 +151,7 @@ class MainApp:
     def toggle_logging(self):
         if self.client:
             self.logging_active = not self.logging_active
+            print(f"[Python] Setting logging to: {self.logging_active}")
             self.client.set_logging(self.logging_active)
             
             if self.logging_active:
@@ -160,6 +169,7 @@ class MainApp:
 
     def force_stop_logging_due_to_limit(self):
         if self.logging_active:
+            print("[Python] Logging limit reached. Stopping automatically.")
             self.logging_active = False
             if self.client:
                 self.client.set_logging(False)
@@ -174,8 +184,29 @@ class MainApp:
             )
 
     def rx_loop(self):
+        last_conn_check = 0
         while self.running and self.client:
-            msg = self.client.read_message()
+            # Periodically check connection status from library
+            now = time.time()
+            if now - last_conn_check > 0.5:
+                is_connected = self.client.is_connected()
+                if is_connected != self.ui_connected_state:
+                    self.ui_connected_state = is_connected
+                    status_text = "Connected" if is_connected else "Connecting..."
+                    color = "green" if is_connected else "orange"
+                    print(f"[Python] Connection status changed: {status_text}")
+                    self.root.after(0, lambda t=status_text, c=color: self.lbl_status.config(text=t, foreground=c))
+                
+                # Print sniffer status every 2 seconds
+                if is_connected and (now - self.last_status_print_time > 2.0):
+                    status_msg = self.client.get_sniffer_status()
+                    if status_msg:
+                        print(f"[Python] Sniffer Status:\n{status_msg}")
+                    self.last_status_print_time = now
+                
+                last_conn_check = now
+
+            msg = self.client.read_message(timeout_ms=100)
             if msg:
                 direction = "Unknown"
                 if msg.command == CMD_CAN_MSG_FROM_SYSTEM:

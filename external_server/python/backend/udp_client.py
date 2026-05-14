@@ -58,6 +58,12 @@ class UdpClient:
         self.lib.client_stop.argtypes = [ctypes.c_void_p]
         self.lib.client_destroy.argtypes = [ctypes.c_void_p]
 
+        self.lib.client_is_connected.argtypes = [ctypes.c_void_p]
+        self.lib.client_is_connected.restype = ctypes.c_bool
+
+        self.lib.client_get_sniffer_status.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_size_t]
+        self.lib.client_get_sniffer_status.restype = ctypes.c_int
+
         self.lib.client_send_log_enable.argtypes = [ctypes.c_void_p, ctypes.c_bool]
         
         self.lib.client_send_injection.argtypes = [ctypes.c_void_p, ctypes.c_uint8, ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint8), ctypes.c_uint8]
@@ -83,6 +89,19 @@ class UdpClient:
     def close(self):
         self.lib.client_destroy(self.handle)
         self.handle = None
+
+    def is_connected(self):
+        if not self.handle:
+            return False
+        return self.lib.client_is_connected(self.handle)
+
+    def get_sniffer_status(self):
+        if not self.handle:
+            return ""
+        buf = ctypes.create_string_buffer(256)
+        if self.lib.client_get_sniffer_status(self.handle, buf, 256):
+            return buf.value.decode('utf-8', errors='replace')
+        return ""
 
     def set_logging(self, enable):
         self.lib.client_send_log_enable(self.handle, enable)

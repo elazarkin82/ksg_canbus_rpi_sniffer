@@ -41,6 +41,22 @@ void client_stop(void* handle);
  */
 void client_destroy(void* handle);
 
+/**
+ * Checks if the client is currently connected (receiving data).
+ * @param handle The client handle.
+ * @return true if connected, false otherwise.
+ */
+bool client_is_connected(void* handle);
+
+/**
+ * Gets the latest status text from the sniffer.
+ * @param handle The client handle.
+ * @param out_buf Buffer to store the status text.
+ * @param buf_size Size of the buffer.
+ * @return 1 if status retrieved, 0 otherwise.
+ */
+int client_get_sniffer_status(void* handle, char* out_buf, size_t buf_size);
+
 // --- Commands ---
 
 /**

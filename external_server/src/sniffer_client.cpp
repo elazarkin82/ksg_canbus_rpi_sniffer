@@ -26,8 +26,12 @@ public:
         : m_udp(nullptr),
           m_keepAliveInterval(keep_alive_interval_ms),
           m_running(false),
-          m_lastSentTime(0)
+          m_lastSentTime(0),
+          m_isConnected(false),
+          m_lastRecvTime(0),
+          m_desiredLoggingState(false)
     {
+        memset(m_lastSnifferStatus, 0, sizeof(m_lastSnifferStatus));
         m_udp = new UdpCanbusCommunication(*this, ip, remote_port, local_port);
         m_udp->setCommandListener(this);
     }
@@ -68,6 +72,26 @@ public:
         {
             m_keepAliveThread.join();
         }
+    }
+
+    bool isConnected() const
+    {
+        return m_isConnected.load();
+    }
+
+    void setLoggingEnabled(bool enable)
+    {
+        m_desiredLoggingState = enable;
+        sendRawCommand(enable ? CMD_EXTERNAL_SERVICE_LOGGING_ON : CMD_EXTERNAL_SERVICE_LOGGING_OFF, nullptr, 0);
+    }
+
+    int getSnifferStatus(char* out_buf, size_t buf_size)
+    {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        if (!out_buf || buf_size == 0) return 0;
+        strncpy(out_buf, m_lastSnifferStatus, buf_size - 1);
+        out_buf[buf_size - 1] = '\0';
+        return 1;
     }
 
     void sendRawCommand(uint32_t command_id, const uint8_t* payload, size_t len)
@@ -120,6 +144,7 @@ public:
     // --- ICommunicationListener (Data / CANF) ---
     virtual void onDataReceived(const uint8_t* data, size_t length) override
     {
+        updateLastRecvTime();
 #ifdef DEBUG_MSG
         char ip[64] = {0};
         uint16_t port = 0;
@@ -157,12 +182,25 @@ public:
     // --- ICommandListener (V1 Commands) ---
     virtual void onCommandReceived(uint32_t command, double time_ms, const uint8_t* data, size_t length) override
     {
+        updateLastRecvTime();
 #ifdef DEBUG_MSG
         char ip[64] = {0};
         uint16_t port = 0;
         m_udp->getLastSenderInfo(ip, sizeof(ip), &port);
         printf("[CLIENT RX] From: %s:%d, Command: 0x%X\n", ip, port, command);
 #endif
+
+        if (command == CMD_KEEP_ALIVE_FROM_SNIFFER)
+        {
+            if (length >= sizeof(KeepAliveFromSnifferPayload))
+            {
+                const KeepAliveFromSnifferPayload* payload = (const KeepAliveFromSnifferPayload*)data;
+                std::lock_guard<std::mutex> lock(m_statusMutex);
+                strncpy(m_lastSnifferStatus, payload->status_text, sizeof(m_lastSnifferStatus) - 1);
+                m_lastSnifferStatus[sizeof(m_lastSnifferStatus) - 1] = '\0';
+            }
+            return;
+        }
 
         if (command == CMD_CAN_MSG_FROM_SYSTEM || command == CMD_CAN_MSG_FROM_COMPUTER ||
             command == CMD_CAN_MSG_BLOCKED_FROM_SYSTEM || command == CMD_CAN_MSG_BLOCKED_FROM_COMPUTER)
@@ -193,19 +231,32 @@ private:
         while (m_running)
         {
             uint64_t now = getCurrentTimeMs();
-            uint64_t last = m_lastSentTime.load();
-            uint64_t diff = now - last;
+            uint64_t lastSent = m_lastSentTime.load();
+            uint64_t lastRecv = m_lastRecvTime.load();
+            uint64_t sentDiff = now - lastSent;
+            
+            // Check for timeout
+            if (m_isConnected && (now - lastRecv > (m_keepAliveInterval * 3)))
+            {
+                m_isConnected = false;
+                fprintf(stdout, "[SnifferClient] Connection timeout! No messages received for %lu ms\n", (unsigned long)(now - lastRecv));
+            }
 
-            if (diff >= m_keepAliveInterval)
+            if (sentDiff >= m_keepAliveInterval)
             {
                 // Debug print
                 // printf("[SDK] Sending Keep Alive...\n"); // Commented out to reduce spam
-                sendRawCommand(CMD_CANBUS_DATA, nullptr, 0);
+                
+                KeepAliveToSnifferPayload payload;
+                memset(&payload, 0, sizeof(payload));
+                payload.logging_requested = m_desiredLoggingState ? 1 : 0;
+
+                sendRawCommand(CMD_KEEP_ALIVE_TO_SNIFFER, (const uint8_t*)&payload, sizeof(payload));
                 std::this_thread::sleep_for(std::chrono::milliseconds(m_keepAliveInterval));
             }
             else
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(m_keepAliveInterval - diff));
+                std::this_thread::sleep_for(std::chrono::milliseconds(m_keepAliveInterval - sentDiff));
             }
         }
     }
@@ -213,6 +264,16 @@ private:
     void updateLastSentTime()
     {
         m_lastSentTime.store(getCurrentTimeMs());
+    }
+
+    void updateLastRecvTime()
+    {
+        if (!m_isConnected)
+        {
+            m_isConnected = true;
+            fprintf(stdout, "[SnifferClient] Connected to sniffer service.\n");
+        }
+        m_lastRecvTime.store(getCurrentTimeMs());
     }
 
     uint64_t getCurrentTimeMs()
@@ -227,6 +288,12 @@ private:
     std::atomic<bool> m_running;
     std::thread m_keepAliveThread;
     std::atomic<uint64_t> m_lastSentTime;
+    std::atomic<bool> m_isConnected;
+    std::atomic<uint64_t> m_lastRecvTime;
+    
+    std::atomic<bool> m_desiredLoggingState;
+    char m_lastSnifferStatus[256];
+    std::mutex m_statusMutex;
 
     std::queue<QueuedMessage> m_queue;
     std::mutex m_queueMutex;
@@ -259,11 +326,22 @@ void client_destroy(void* handle)
     delete (SnifferClient*)handle;
 }
 
+bool client_is_connected(void* handle)
+{
+    if (!handle) return false;
+    return ((SnifferClient*)handle)->isConnected();
+}
+
+int client_get_sniffer_status(void* handle, char* out_buf, size_t buf_size)
+{
+    if (!handle) return 0;
+    return ((SnifferClient*)handle)->getSnifferStatus(out_buf, buf_size);
+}
+
 void client_send_log_enable(void* handle, bool enable)
 {
     if (!handle) return;
-    uint32_t cmd = enable ? CMD_EXTERNAL_SERVICE_LOGGING_ON : CMD_EXTERNAL_SERVICE_LOGGING_OFF;
-    ((SnifferClient*)handle)->sendRawCommand(cmd, nullptr, 0);
+    ((SnifferClient*)handle)->setLoggingEnabled(enable);
 }
 
 void client_send_injection(void* handle, uint8_t target, uint32_t can_id, const uint8_t* data, uint8_t len)
