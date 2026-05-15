@@ -65,8 +65,6 @@ public:
         int written;
         std::unordered_map<std::string, std::string>::iterator it;
 
-        std::lock_guard<std::mutex> lock(m_mutex);
-
         if (!out_status || max_size == 0)
         {
             return;
@@ -74,6 +72,7 @@ public:
 
         update_available_usb_status();
 
+        std::lock_guard<std::mutex> lock(m_mutex);
         out_status[0] = '\0';
         currentLen = 0;
 
