@@ -294,7 +294,7 @@ private:
     std::atomic<uint64_t> m_lastRecvTime;
     
     std::atomic<bool> m_desiredLoggingState;
-    char m_lastSnifferStatus[1024];
+    char m_lastSnifferStatus[64000];
     std::mutex m_statusMutex;
 
     std::queue<QueuedMessage> m_queue;

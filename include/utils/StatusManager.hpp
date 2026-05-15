@@ -87,6 +87,7 @@ public:
 
             if (currentLen >= (size_t)max_size)
             {
+                fprintf(stderr, "[StatusManager Diagnostic] Truncation detected! currentLen (%zu) >= max_size (%u)\n", currentLen, max_size);
                 break;
             }
         }

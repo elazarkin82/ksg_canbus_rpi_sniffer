@@ -99,8 +99,8 @@ class UdpClient:
     def get_sniffer_status(self):
         if not self.handle:
             return ""
-        buf = ctypes.create_string_buffer(256)
-        if self.lib.client_get_sniffer_status(self.handle, buf, 256):
+        buf = ctypes.create_string_buffer(64000)
+        if self.lib.client_get_sniffer_status(self.handle, buf, 64000):
             return buf.value.decode('utf-8', errors='replace')
         return ""
 
