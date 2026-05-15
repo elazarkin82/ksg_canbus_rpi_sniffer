@@ -1,4 +1,5 @@
 #include "core/MainService.h"
+#include "utils/StatusManager.hpp"
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -21,6 +22,10 @@ static const char* DEFAULT_PARAMS =
     "car_computer_can_name=vcan1\n"
     "external_service_port=9095\n"
     "external_client_port=9096\n";
+
+static const char KEY_SYSTEM_SETTING[] = "System CAN [Setting]";
+static const char KEY_COMPUTER_SETTING[] = "Computer CAN [Setting]";
+static const char KEY_NETWORK_SETTING[] = "Network Ports [Setting]";
 
 struct CanInterfaceConfig
 {
@@ -264,9 +269,13 @@ private:
 
     void watchdogLoop()
     {
+        char watchdog_key[1024];
+
 #ifdef DEBUG_USB
         fprintf(stdout, "[UsbWatchdog] Starting watchdog loop for %s...\n", m_canInterfaceName);
 #endif
+        snprintf(watchdog_key, sizeof(watchdog_key), "Watchdog: %s", m_canInterfaceName);
+
         while (m_running)
         {
             char usbPath[256];
@@ -287,9 +296,11 @@ private:
             if (!usbPresent)
             {
                 killExistingSlcand();
+                utils::StatusManager::getInstance().update_status(watchdog_key, "USB DISCONNECTED");
             }
             else if (!netPresent)
             {
+                utils::StatusManager::getInstance().update_status(watchdog_key, "MAPPING...");
 #ifdef DEBUG_USB
                 fprintf(stdout, "[UsbWatchdog] Checking USB device %s, trying to map to %s...\n", m_usbUniqName, m_canInterfaceName);
 #endif
@@ -314,10 +325,19 @@ private:
                     res = system(cmd);
                     (void)res;
 
+                    utils::StatusManager::getInstance().update_status(watchdog_key, "INTERFACE UP");
 #ifdef DEBUG_USB
                     fprintf(stdout, "[UsbWatchdog] Interface %s is configured and up.\n", m_canInterfaceName);
 #endif
                 }
+                else
+                {
+                    utils::StatusManager::getInstance().update_status(watchdog_key, "USB FOUND, NO TTY");
+                }
+            }
+            else
+            {
+                utils::StatusManager::getInstance().update_status(watchdog_key, "ACTIVE");
             }
 
             {
@@ -428,6 +448,7 @@ void MainService::createSniffer()
     const char* compNameRaw;
     CanInterfaceConfig sysConfig, compConfig;
     int servicePort, clientPort;
+    char setting_buf[1024];
 
     if (m_sniffer) return;
 
@@ -441,6 +462,13 @@ void MainService::createSniffer()
     parseCanConfig(sysNameRaw ? sysNameRaw : "vcan0", &sysConfig);
     parseCanConfig(compNameRaw ? compNameRaw : "vcan1", &compConfig);
 
+    // Update current settings in StatusManager
+    snprintf(setting_buf, sizeof(setting_buf), "%s (USB: %s)", sysConfig.interfaceName, sysConfig.usbId[0] ? sysConfig.usbId : "N/A");
+    utils::StatusManager::getInstance().update_status(KEY_SYSTEM_SETTING, setting_buf);
+
+    snprintf(setting_buf, sizeof(setting_buf), "%s (USB: %s)", compConfig.interfaceName, compConfig.usbId[0] ? compConfig.usbId : "N/A");
+    utils::StatusManager::getInstance().update_status(KEY_COMPUTER_SETTING, setting_buf);
+
     // Construct interface#led for Sniffer
     snprintf(params.car_system_can_name, sizeof(params.car_system_can_name), "%s#%s", sysConfig.interfaceName, sysConfig.ledName);
     snprintf(params.car_computer_can_name, sizeof(params.car_computer_can_name), "%s#%s", compConfig.interfaceName, compConfig.ledName);
@@ -450,6 +478,9 @@ void MainService::createSniffer()
 
     params.external_service_port = (uint16_t)servicePort;
     params.external_client_port = (uint16_t)clientPort;
+
+    snprintf(setting_buf, sizeof(setting_buf), "Listen: %d, Send: %d", params.external_service_port, params.external_client_port);
+    utils::StatusManager::getInstance().update_status(KEY_NETWORK_SETTING, setting_buf);
 
     printf("[MainService] Creating Sniffer with params:\n");
     printf("  System CAN config: %s (Watchdog USB: %s)\n", params.car_system_can_name, sysConfig.usbId);

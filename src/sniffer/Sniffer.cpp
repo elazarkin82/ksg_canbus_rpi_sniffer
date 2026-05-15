@@ -110,7 +110,7 @@ namespace FilterEngine
         }
 
         memcpy(rules_raw_memory, data, length);
-        rules_count = num_rules;
+        rules_count = (int)num_rules;
 
 #ifdef DEBUG
         printf("[FilterEngine] Loaded %d rules. First rule ID: 0x%X, Action: %d\n",
@@ -380,7 +380,21 @@ void Sniffer::CanListener::onStatusChanged(base::CommunicationStatus status)
 void Sniffer::handleStatusChanged(Source source, base::CommunicationStatus status)
 {
     const char* ledName;
+    const char* statusStr;
+    const char* key;
     utils::LedControllerUtil& ledUtil = utils::LedControllerUtil::getInstance();
+
+    statusStr = "UNKNOWN";
+    switch (status)
+    {
+        case base::STATUS_CONNECTED:    statusStr = "CONNECTED"; break;
+        case base::STATUS_DISCONNECTED: statusStr = "DISCONNECTED"; break;
+        case base::STATUS_ERROR:        statusStr = "ERROR"; break;
+        default: break;
+    }
+
+    key = (source == SOURCE_CAR_SYSTEM) ? "Connection: System" : "Connection: Computer";
+    utils::StatusManager::getInstance().update_status(key, statusStr);
 
     if (m_is_leds_feature_on)
     {
@@ -499,10 +513,10 @@ void Sniffer::handleCanData(Source source, const uint8_t* data, size_t length)
 
             // Payload is the raw CAN frame
             copyLen = (length < sizeof(msg.data)) ? length : sizeof(msg.data);
-            msg.data_size = copyLen;
+            msg.data_size = (uint32_t)copyLen;
             memcpy(msg.data, buffer, copyLen);
 
-            size_t sendLen = communication::calculateExternalMessageV1Size(copyLen);
+            size_t sendLen = communication::calculateExternalMessageV1Size((uint32_t)copyLen);
             m_externalService->send((const uint8_t*)&msg, sendLen);
             // fprintf(stdout, "send ExternalMessageV1 to server (command=%d)\n", msg.command);
         }
@@ -539,7 +553,10 @@ void Sniffer::onCommandReceived(uint32_t command, double time_ms, const uint8_t*
 
     if (command == communication::CMD_SET_FILTERS)
     {
+        char rule_count_str[32];
         FilterEngine::loadRules(data, length);
+        snprintf(rule_count_str, sizeof(rule_count_str), "%zu", length / sizeof(communication::CanFilterRule));
+        utils::StatusManager::getInstance().update_status("Filter Rules [Setting]", rule_count_str);
 #ifdef DEBUG
         printf("Filter rules updated\n");
 #endif
@@ -620,6 +637,7 @@ void Sniffer::setLoggingState(bool enable)
     {
         m_externalServiceLogging = enable;
         fprintf(stdout, "[Sniffer] Logging set to: %s\n", enable ? "ON" : "OFF");
+        utils::StatusManager::getInstance().update_status("Logging Active [Setting]", enable ? "ON" : "OFF");
     }
 }
 

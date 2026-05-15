@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <dirent.h>
 #include <chrono>
 #include <mutex>
 #include <unordered_map>
@@ -71,6 +72,8 @@ public:
             return;
         }
 
+        update_available_usb_status();
+
         out_status[0] = '\0';
         currentLen = 0;
 
@@ -101,6 +104,45 @@ private:
     }
     
     ~StatusManager() {}
+
+    void update_available_usb_status()
+    {
+        DIR* dir;
+        struct dirent* ent;
+        char usb_list_str[2048];
+        size_t usb_list_str_len = 0;
+
+        usb_list_str[0] = '\0';
+        dir = opendir("/sys/bus/usb/devices/");
+        
+        if (dir != NULL)
+        {
+            while ((ent = readdir(dir)) != NULL)
+            {
+                // Skip hidden entries
+                if (ent->d_name[0] == '.') continue;
+
+                if(usb_list_str_len == 0)
+                {
+                    usb_list_str_len = snprintf(usb_list_str, sizeof(usb_list_str), "%s", ent->d_name);
+                }
+                else
+                {
+                    usb_list_str_len += snprintf(&usb_list_str[usb_list_str_len], sizeof(usb_list_str) - usb_list_str_len, ", %s", ent->d_name);
+                }
+            }
+            closedir(dir);
+        }
+
+        if (usb_list_str_len > 0)
+        {
+            update_status("available_usb", usb_list_str);
+        }
+        else
+        {
+            update_status("available_usb", "none");
+        }
+    }
 
     uint64_t m_startTimeUsec;
     std::unordered_map<std::string, std::string> m_statusMessages;
