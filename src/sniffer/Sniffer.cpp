@@ -13,6 +13,9 @@
 namespace sniffer
 {
 
+static const int LED_INIT_ON_MS = 200;
+static const int LED_INIT_OFF_MS = 1500;
+
 // --- Helper Functions (Internal) ---
 
 static inline void extractInterfaceName(const char* fullConfig, char* outInterfaceName, size_t outSize)
@@ -245,10 +248,12 @@ Sniffer::Sniffer(const SnifferParams& params)
         if (sysLedExists)
         {
             ledUtil.takeControl(m_systemLedName);
+            ledUtil.setTimer(m_systemLedName, LED_INIT_ON_MS, LED_INIT_OFF_MS);
         }
         if (compLedExists)
         {
             ledUtil.takeControl(m_computerLedName);
+            ledUtil.setTimer(m_computerLedName, LED_INIT_ON_MS, LED_INIT_OFF_MS);
         }
     }
 

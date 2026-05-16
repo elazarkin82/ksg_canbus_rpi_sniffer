@@ -34,19 +34,6 @@ int main(int argc, char* argv[])
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
 
-    // Reset PWR and ACT LEDs if they exist
-    if (ledUtil.exists("PWR"))
-    {
-        ledUtil.takeControl("PWR");
-        ledUtil.setTimer("PWR", 200, 1500);
-    }
-
-    if (ledUtil.exists("ACT"))
-    {
-        ledUtil.takeControl("ACT");
-        ledUtil.setTimer("ACT", 200, 1500);
-    }
-
     g_service = new core::MainService(configPath);
 
     // Start running the service in a non-blocking way if possible, 
