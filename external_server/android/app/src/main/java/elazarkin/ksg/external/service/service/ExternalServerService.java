@@ -16,7 +16,8 @@ import elazarkin.ksg.external.service.jni.NativeInterface;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ExternalServerService extends Service {
+public class ExternalServerService extends Service
+{
     private static final String CHANNEL_ID = "ExternalServerChannel";
     private static final int NOTIFICATION_ID = 1;
 
@@ -26,92 +27,125 @@ public class ExternalServerService extends Service {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private StatusListener statusListener;
     private final List<String> systemLogs = new ArrayList<>();
-    
-    public interface StatusListener {
+
+    public interface StatusListener
+    {
         void onStatusUpdate(String status);
         void onConnectionStateChanged(boolean connected);
         void onLogReceived(String log);
     }
 
-    public class LocalBinder extends Binder {
-        public ExternalServerService getService() {
+    public class LocalBinder extends Binder
+    {
+        public ExternalServerService getService()
+        {
             return ExternalServerService.this;
         }
     }
 
     @Override
-    public void onCreate() {
+    public void onCreate()
+    {
         super.onCreate();
         createNotificationChannel();
     }
 
     @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
+    public int onStartCommand(Intent intent, int flags, int startId)
+    {
         Notification notification = createNotification("Service Running");
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+        {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
-        } else {
+        }
+        else
+        {
             startForeground(NOTIFICATION_ID, notification);
         }
         return START_STICKY;
     }
 
-    public void connect(String ip, int remotePort, int localPort) {
-        if (clientHandle != 0) return;
+    public void connect(String ip, int remotePort, int localPort)
+    {
+        if (clientHandle != 0)
+        {
+            return;
+        }
 
         addLog("[INFO] Attempting connection to " + ip + ":" + remotePort);
         clientHandle = NativeInterface.clientCreate(ip, remotePort, localPort, 500);
-        if (clientHandle != 0) {
+        if (clientHandle != 0)
+        {
             NativeInterface.clientStart(clientHandle);
             isRunning = true;
             startStatusPolling();
-        } else {
+        }
+        else
+        {
             addLog("[ERROR] Failed to create native client handle");
         }
     }
 
-    public void disconnect() {
+    public void disconnect()
+    {
         isRunning = false;
-        if (clientHandle != 0) {
+        if (clientHandle != 0)
+        {
             NativeInterface.clientStop(clientHandle);
             NativeInterface.clientDestroy(clientHandle);
             clientHandle = 0;
             addLog("[INFO] Native client stopped and destroyed");
         }
-        if (statusListener != null) {
+        if (statusListener != null)
+        {
             statusListener.onConnectionStateChanged(false);
         }
     }
 
-    public void setStatusListener(StatusListener listener) {
+    public void setStatusListener(StatusListener listener)
+    {
         this.statusListener = listener;
     }
 
-    public List<String> getSystemLogs() {
+    public List<String> getSystemLogs()
+    {
         return new ArrayList<>(systemLogs);
     }
 
-    public void addLog(String log) {
+    public void addLog(String log)
+    {
         systemLogs.add(log);
-        if (statusListener != null) {
+        if (statusListener != null)
+        {
             statusListener.onLogReceived(log);
         }
     }
 
-    private void startStatusPolling() {
-        if (!isRunning) return;
+    private void startStatusPolling()
+    {
+        if (!isRunning)
+        {
+            return;
+        }
 
-        handler.postDelayed(new Runnable() {
+        handler.postDelayed(new Runnable()
+        {
             @Override
-            public void run() {
-                if (!isRunning || clientHandle == 0) return;
+            public void run()
+            {
+                if (!isRunning || clientHandle == 0)
+                {
+                    return;
+                }
 
                 boolean connected = NativeInterface.clientIsConnected(clientHandle);
                 String status = NativeInterface.clientGetSnifferStatus(clientHandle);
 
-                if (statusListener != null) {
+                if (statusListener != null)
+                {
                     statusListener.onConnectionStateChanged(connected);
-                    if (status != null) {
+                    if (status != null)
+                    {
                         statusListener.onStatusUpdate(status);
                     }
                 }
@@ -121,21 +155,25 @@ public class ExternalServerService extends Service {
         }, 500);
     }
 
-    private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    private void createNotificationChannel()
+    {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+        {
             NotificationChannel serviceChannel = new NotificationChannel(
                     CHANNEL_ID,
                     "External Server Service Channel",
                     NotificationManager.IMPORTANCE_LOW
             );
             NotificationManager manager = getSystemService(NotificationManager.class);
-            if (manager != null) {
+            if (manager != null)
+            {
                 manager.createNotificationChannel(serviceChannel);
             }
         }
     }
 
-    private Notification createNotification(String content) {
+    private Notification createNotification(String content)
+    {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("KSG CAN Sniffer")
                 .setContentText(content)
@@ -144,12 +182,14 @@ public class ExternalServerService extends Service {
     }
 
     @Override
-    public IBinder onBind(Intent intent) {
+    public IBinder onBind(Intent intent)
+    {
         return binder;
     }
 
     @Override
-    public void onDestroy() {
+    public void onDestroy()
+    {
         disconnect();
         super.onDestroy();
     }

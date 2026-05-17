@@ -19,7 +19,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.ExternalService">
-        
+
         <service
             android:name=".service.ExternalServerService"
             android:enabled="true"

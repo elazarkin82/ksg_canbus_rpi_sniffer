@@ -15,11 +15,12 @@ import androidx.navigation.ui.AppBarConfiguration;
 import androidx.navigation.ui.NavigationUI;
 import elazarkin.ksg.external.service.databinding.ActivityMainBinding;
 
-public class MainActivity extends AppCompatActivity {
-
+public class MainActivity extends AppCompatActivity
+{
     private static final int PERMISSION_REQUEST_CODE = 100;
 
-    static {
+    static
+    {
         System.loadLibrary("service");
     }
 
@@ -27,7 +28,8 @@ public class MainActivity extends AppCompatActivity {
     private AppBarConfiguration appBarConfiguration;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(Bundle savedInstanceState)
+    {
         super.onCreate(savedInstanceState);
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());
@@ -40,14 +42,16 @@ public class MainActivity extends AppCompatActivity {
 
         NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.nav_host_fragment);
-        if (navHostFragment != null) {
+
+        if (navHostFragment != null)
+        {
             NavController navController = navHostFragment.getNavController();
 
             // Order matches the Drawer menu for consistency
             appBarConfiguration = new AppBarConfiguration.Builder(
                     R.id.nav_connection, R.id.nav_sniffer, R.id.nav_records,
-                    R.id.nav_rules, R.id.nav_obd, R.id.nav_settings_remote, 
-                    R.id.nav_settings_local, R.id.nav_cockpit)
+                    R.id.nav_rules, R.id.nav_obd, R.id.nav_settings_remote,
+                    R.id.nav_settings_local, R.id.nav_system_logs, R.id.nav_cockpit)
                     .setOpenableLayout(binding.drawerLayout)
                     .build();
 
@@ -55,45 +59,59 @@ public class MainActivity extends AppCompatActivity {
             NavigationUI.setupWithNavController(binding.navView, navController);
         }
 
-        binding.btnPanic.setOnClickListener(v -> {
+        binding.btnPanic.setOnClickListener(v ->
+        {
             Toast.makeText(this, "PANIC: Sending Reset Command!", Toast.LENGTH_SHORT).show();
         });
 
         binding.statusLed.setBackgroundColor(getResources().getColor(android.R.color.holo_red_dark, getTheme()));
     }
 
-    private void checkAndRequestPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) 
-                    != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, 
-                        new String[]{Manifest.permission.POST_NOTIFICATIONS}, 
+    private void checkAndRequestPermissions()
+    {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED)
+            {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
                         PERMISSION_REQUEST_CODE);
             }
         }
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults)
+    {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == PERMISSION_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+
+        if (requestCode == PERMISSION_REQUEST_CODE)
+        {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
+            {
                 Toast.makeText(this, "Notification permission granted", Toast.LENGTH_SHORT).show();
-            } else {
+            }
+            else
+            {
                 Toast.makeText(this, "Warning: Notifications disabled. Service status won't be visible.", Toast.LENGTH_LONG).show();
             }
         }
     }
 
     @Override
-    public boolean onSupportNavigateUp() {
+    public boolean onSupportNavigateUp()
+    {
         NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.nav_host_fragment);
-        if (navHostFragment != null) {
+
+        if (navHostFragment != null)
+        {
             NavController navController = navHostFragment.getNavController();
             return NavigationUI.navigateUp(navController, appBarConfiguration)
                     || super.onSupportNavigateUp();
         }
+
         return super.onSupportNavigateUp();
     }
 
