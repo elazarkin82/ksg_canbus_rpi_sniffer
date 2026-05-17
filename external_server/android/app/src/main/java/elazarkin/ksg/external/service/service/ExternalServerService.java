@@ -27,11 +27,15 @@ public class ExternalServerService extends Service
     private final Handler handler = new Handler(Looper.getMainLooper());
     private StatusListener statusListener;
     private final List<String> systemLogs = new ArrayList<>();
+    private String lastStatus = "Disconnected";
+    private boolean isClientConnected = false;
 
     public interface StatusListener
     {
         void onStatusUpdate(String status);
+
         void onConnectionStateChanged(boolean connected);
+
         void onLogReceived(String log);
     }
 
@@ -53,7 +57,8 @@ public class ExternalServerService extends Service
     @Override
     public int onStartCommand(Intent intent, int flags, int startId)
     {
-        Notification notification = createNotification("Service Running");
+        Notification notification;
+        notification = createNotification("Service Running");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
         {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
@@ -94,17 +99,26 @@ public class ExternalServerService extends Service
             NativeInterface.clientStop(clientHandle);
             NativeInterface.clientDestroy(clientHandle);
             clientHandle = 0;
+            isClientConnected = false;
+            lastStatus = "Disconnected";
             addLog("[INFO] Native client stopped and destroyed");
         }
         if (statusListener != null)
         {
             statusListener.onConnectionStateChanged(false);
+            statusListener.onStatusUpdate(lastStatus);
         }
     }
 
     public void setStatusListener(StatusListener listener)
     {
         this.statusListener = listener;
+        if (listener != null)
+        {
+            // Immediate sync when listener attaches
+            listener.onConnectionStateChanged(isClientConnected);
+            listener.onStatusUpdate(lastStatus);
+        }
     }
 
     public List<String> getSystemLogs()
@@ -121,6 +135,21 @@ public class ExternalServerService extends Service
         }
     }
 
+    public boolean isClientActive()
+    {
+        return clientHandle != 0;
+    }
+
+    public boolean isClientConnected()
+    {
+        return isClientConnected;
+    }
+
+    public String getLastStatus()
+    {
+        return lastStatus;
+    }
+
     private void startStatusPolling()
     {
         if (!isRunning)
@@ -133,21 +162,27 @@ public class ExternalServerService extends Service
             @Override
             public void run()
             {
+                String status;
+                boolean connected;
+
                 if (!isRunning || clientHandle == 0)
                 {
                     return;
                 }
 
-                boolean connected = NativeInterface.clientIsConnected(clientHandle);
-                String status = NativeInterface.clientGetSnifferStatus(clientHandle);
+                connected = NativeInterface.clientIsConnected(clientHandle);
+                status = NativeInterface.clientGetSnifferStatus(clientHandle);
+
+                isClientConnected = connected;
+                if (status != null)
+                {
+                    lastStatus = status;
+                }
 
                 if (statusListener != null)
                 {
-                    statusListener.onConnectionStateChanged(connected);
-                    if (status != null)
-                    {
-                        statusListener.onStatusUpdate(status);
-                    }
+                    statusListener.onConnectionStateChanged(isClientConnected);
+                    statusListener.onStatusUpdate(lastStatus);
                 }
 
                 handler.postDelayed(this, 500);
@@ -159,12 +194,15 @@ public class ExternalServerService extends Service
     {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
         {
-            NotificationChannel serviceChannel = new NotificationChannel(
+            NotificationChannel serviceChannel;
+            NotificationManager manager;
+
+            serviceChannel = new NotificationChannel(
                     CHANNEL_ID,
                     "External Server Service Channel",
                     NotificationManager.IMPORTANCE_LOW
             );
-            NotificationManager manager = getSystemService(NotificationManager.class);
+            manager = getSystemService(NotificationManager.class);
             if (manager != null)
             {
                 manager.createNotificationChannel(serviceChannel);
