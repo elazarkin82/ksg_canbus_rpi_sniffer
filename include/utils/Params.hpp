@@ -92,6 +92,34 @@ public:
         return defaultVal;
     }
 
+    void getAll(char* outBuf, size_t bufSize)
+    {
+        size_t currentLen;
+        char line[MAX_LINE_LEN];
+        int n;
+
+        if (!outBuf || bufSize == 0) return;
+        outBuf[0] = '\0';
+        currentLen = 0;
+
+        for (int i = 0; i < m_count; ++i)
+        {
+            n = snprintf(line, sizeof(line), "%s=%s\n", m_keys[i], m_values[i]);
+            if (n > 0)
+            {
+                if (currentLen + (size_t)n < bufSize)
+                {
+                    strcat(outBuf, line);
+                    currentLen += (size_t)n;
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+    }
+
 private:
     char m_filePath[MAX_PATH_LEN];
     char m_keys[MAX_PARAMS][MAX_KEY_LEN];

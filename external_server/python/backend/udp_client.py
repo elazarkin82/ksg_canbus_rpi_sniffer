@@ -70,6 +70,8 @@ class UdpClient:
 
         self.lib.client_set_filters.argtypes = [ctypes.c_void_p, ctypes.POINTER(CanFilterRule), ctypes.c_size_t]
 
+        self.lib.client_send_raw_command.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t]
+
         # Updated API with time_ms support
         self.lib.client_read_message.argtypes = [
             ctypes.c_void_p, 
@@ -121,11 +123,21 @@ class UdpClient:
         rules_arr = (CanFilterRule * len(rules))(*rules)
         self.lib.client_set_filters(self.handle, rules_arr, len(rules))
 
+    def request_params(self):
+        if self.handle:
+            self.lib.client_send_raw_command(self.handle, CMD_GET_PARAMS_REQ, None, 0)
+
+    def send_params(self, params_str):
+        if self.handle:
+            data_bytes = params_str.encode('utf-8')
+            data_arr = (ctypes.c_uint8 * len(data_bytes))(*data_bytes)
+            self.lib.client_send_raw_command(self.handle, CMD_SET_PARAMS, data_arr, len(data_bytes))
+
     def read_message(self, timeout_ms=100):
         command = ctypes.c_uint32()
         time_ms = ctypes.c_double()
         length = ctypes.c_uint32()
-        data = (ctypes.c_uint8 * 72)() # Safe buffer size for canfd_frame
+        data = (ctypes.c_uint8 * 64000)() # Safe buffer size for ExternalMessageV1 payload
         
         res = self.lib.client_read_message(self.handle, ctypes.byref(command), ctypes.byref(time_ms), data, ctypes.byref(length), timeout_ms)
         

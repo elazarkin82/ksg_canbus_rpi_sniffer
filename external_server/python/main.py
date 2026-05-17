@@ -13,10 +13,12 @@ from gui.reverse_engineering import ReverseEngineeringPanel
 from gui.obd2_panel import OBD2Panel # New import
 from gui.cockpit_panel import CockpitPanel # New import
 from gui.status_window import SnifferStatusWindow
+from gui.sniffer_remote_settings import SnifferRemoteSettings
 
 # Command IDs (Must match C++ header)
 CMD_CAN_MSG_FROM_SYSTEM = 0x2001
 CMD_CAN_MSG_FROM_COMPUTER = 0x2002
+CMD_GET_PARAMS_RES = 0x2006
 
 class MainApp:
     def __init__(self, root):
@@ -47,6 +49,7 @@ class MainApp:
         self.ui_connected_state = False # Track UI state for logging
         self.last_status_print_time = 0 # To limit console spam
         self.status_window = None
+        self.remote_settings_window = None
         
         self.debug_var = tk.BooleanVar(value=False)
 
@@ -68,6 +71,7 @@ class MainApp:
 
         sniffer_menu = tk.Menu(menubar, tearoff=0)
         sniffer_menu.add_command(label="Sniffer Status", command=self.show_sniffer_status)
+        sniffer_menu.add_command(label="Remote Settings", command=self.show_remote_settings)
         menubar.add_cascade(label="Sniffer", menu=sniffer_menu)
         
         self.root.config(menu=menubar)
@@ -109,6 +113,12 @@ class MainApp:
             self.status_window = SnifferStatusWindow(self.root, self)
         else:
             self.status_window.lift()
+
+    def show_remote_settings(self):
+        if self.remote_settings_window is None or not self.remote_settings_window.winfo_exists():
+            self.remote_settings_window = SnifferRemoteSettings(self.root, self.client)
+        else:
+            self.remote_settings_window.lift()
 
     def on_status_window_close(self):
         self.status_window = None
@@ -212,6 +222,10 @@ class MainApp:
                     print(f"[Python] Connection status changed: {status_text}")
                     self.root.after(0, lambda t=status_text, c=color: self.lbl_status.config(text=t, foreground=c))
                 
+                # Update settings window button states if open
+                if self.remote_settings_window and self.remote_settings_window.winfo_exists():
+                    self.root.after(0, self.remote_settings_window.update_button_states)
+
                 # Print sniffer status every 0.5 seconds
                 if is_connected and (now - self.last_status_print_time > 0.5):
                     status_msg = self.client.get_sniffer_status()
@@ -225,6 +239,12 @@ class MainApp:
 
             msg = self.client.read_message(timeout_ms=100)
             if msg:
+                if msg.command == CMD_GET_PARAMS_RES:
+                    params_str = msg.data.decode('utf-8', errors='replace')
+                    if self.remote_settings_window and self.remote_settings_window.winfo_exists():
+                        self.root.after(0, self.remote_settings_window.on_params_received, params_str)
+                    continue
+
                 direction = "Unknown"
                 if msg.command == CMD_CAN_MSG_FROM_SYSTEM:
                     direction = "SYS->ECU"

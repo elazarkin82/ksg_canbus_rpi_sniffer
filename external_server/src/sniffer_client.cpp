@@ -16,7 +16,7 @@ struct QueuedMessage {
     uint32_t command;
     double time_ms;
     uint32_t len;
-    uint8_t data[72]; // Max CAN FD payload
+    uint8_t data[64000]; // Increased to support full ExternalMessageV1 payload
 };
 
 class SnifferClient : public base::ICommunicationListener, public communication::ICommandListener
@@ -63,8 +63,8 @@ public:
         m_running = false;
 
         // Send reset command (optional, but good practice)
-        bool enable = false;
-        // sendRawCommand(CMD_EXTERNAL_SERVICE_LOGGING_OFF, (const uint8_t*)&enable, 0); // Can't call member function easily here if thread is running
+        // bool enable = false;
+        // sendRawCommand(CMD_EXTERNAL_SERVICE_LOGGING_OFF, (const uint8_t*)&enable, 0); 
 
         m_udp->stop();
 
@@ -106,13 +106,13 @@ public:
         strncpy(msg.magic_key, "v1.00", 8);
         msg.command = command_id;
         msg.time_ms_from_start = 0; 
-        msg.data_size = len;
+        msg.data_size = (uint32_t)len;
         if (len > 0 && len <= sizeof(msg.data))
         {
             memcpy(msg.data, payload, len);
         }
 
-        send_len = calculateExternalMessageV1Size(len);
+        send_len = calculateExternalMessageV1Size((uint32_t)len);
         m_udp->send((const uint8_t*)&msg, send_len);
 
         updateLastSentTime();
@@ -163,7 +163,7 @@ public:
             QueuedMessage msg;
             msg.command = CMD_CANBUS_DATA;
             msg.time_ms = 0;
-            msg.len = length;
+            msg.len = (uint32_t)length;
             if (length <= sizeof(msg.data)) memcpy(msg.data, data, length);
 
             std::lock_guard<std::mutex> lock(m_queueMutex);
@@ -205,19 +205,20 @@ public:
         }
 
         if (command == CMD_CAN_MSG_FROM_SYSTEM || command == CMD_CAN_MSG_FROM_COMPUTER ||
-            command == CMD_CAN_MSG_BLOCKED_FROM_SYSTEM || command == CMD_CAN_MSG_BLOCKED_FROM_COMPUTER)
+            command == CMD_CAN_MSG_BLOCKED_FROM_SYSTEM || command == CMD_CAN_MSG_BLOCKED_FROM_COMPUTER ||
+            command == CMD_GET_PARAMS_RES)
         {
             QueuedMessage msg;
             msg.command = command;
             msg.time_ms = time_ms;
-            msg.len = length;
+            msg.len = (uint32_t)length;
             if (length <= sizeof(msg.data))
             {
                 memcpy(msg.data, data, length);
             }
             else
             {
-                msg.len = sizeof(msg.data);
+                msg.len = (uint32_t)sizeof(msg.data);
                 memcpy(msg.data, data, sizeof(msg.data));
             }
 
@@ -349,8 +350,10 @@ void client_send_log_enable(void* handle, bool enable)
 void client_send_injection(void* handle, uint8_t target, uint32_t can_id, const uint8_t* data, uint8_t len)
 {
     struct can_frame frame;
+    uint32_t cmd;
+
     if (!handle) return;
-    uint32_t cmd = (target == 1) ? CMD_CANBUS_TO_SYSTEM : CMD_CANBUS_TO_CAR;
+    cmd = (target == 1) ? CMD_CANBUS_TO_SYSTEM : CMD_CANBUS_TO_CAR;
 
     memset(&frame, 0, sizeof(frame));
     frame.can_id = can_id;

@@ -126,6 +126,7 @@ static const uint32_t CMD_EXTERNAL_SERVICE_LOGGING_OFF = 0x1005;
 static const uint32_t CMD_SET_FILTERS = 0x1006;      // Set/Replace all filter rules
 static const uint32_t CMD_SET_PARAMS = 0x1007;       // Set configuration parameters
 static const uint32_t CMD_KEEP_ALIVE_TO_SNIFFER = 0x1008;
+static const uint32_t CMD_GET_PARAMS_REQ = 0x1009;   // Request current parameters
 
 // Log Commands (From Sniffer to External Server)
 static const uint32_t CMD_CAN_MSG_FROM_SYSTEM = 0x2001; // Log: Message originated from System
@@ -133,6 +134,7 @@ static const uint32_t CMD_CAN_MSG_FROM_COMPUTER = 0x2002; // Log: Message origin
 static const uint32_t CMD_CAN_MSG_BLOCKED_FROM_SYSTEM = 0x2003; // Log: Blocked message from System
 static const uint32_t CMD_CAN_MSG_BLOCKED_FROM_COMPUTER = 0x2004; // Log: Blocked message from Computer
 static const uint32_t CMD_KEEP_ALIVE_FROM_SNIFFER = 0x2005;
+static const uint32_t CMD_GET_PARAMS_RES = 0x2006;   // Response with current parameters
 
 // Filter Target Constants
 static const uint8_t FILTER_TARGET_BOTH = 0;

@@ -45,6 +45,9 @@ public:
     // --- ICommandListener Implementation (from External Service) ---
     virtual void onCommandReceived(uint32_t command, double time_ms, const uint8_t* data, size_t length) override;
 
+    // Send a system-level response back to the external server
+    void sendSystemResponse(uint32_t cmd, const uint8_t* data, size_t len);
+
 private:
     // Internal listener to distinguish between sources
     class CanListener : public base::ICommunicationListener

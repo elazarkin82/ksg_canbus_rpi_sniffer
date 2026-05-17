@@ -443,6 +443,15 @@ void MainService::onSystemCommand(uint32_t cmd, const uint8_t* data, size_t len)
             m_restartRequested = true;
         }
     }
+    else if (cmd == communication::CMD_GET_PARAMS_REQ)
+    {
+        if (m_params && m_sniffer)
+        {
+            char buffer[16384]; // Sufficient for params
+            m_params->getAll(buffer, sizeof(buffer));
+            m_sniffer->sendSystemResponse(communication::CMD_GET_PARAMS_RES, (const uint8_t*)buffer, strlen(buffer));
+        }
+    }
 }
 
 void MainService::createSniffer()

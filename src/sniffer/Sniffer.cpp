@@ -507,6 +507,8 @@ void Sniffer::handleCanData(Source source, const uint8_t* data, size_t length)
         {
             // Use ExternalMessageV1 with direction command
             communication::ExternalMessageV1 msg;
+            size_t sendLen;
+
             memset(&msg, 0, sizeof(msg));
             strncpy(msg.magic_key, "v1.00", 8);
             msg.time_ms_from_start = utils::StatusManager::getInstance().get_time_ms_from_start();
@@ -542,7 +544,7 @@ void Sniffer::handleCanData(Source source, const uint8_t* data, size_t length)
             msg.data_size = (uint32_t)copyLen;
             memcpy(msg.data, buffer, copyLen);
 
-            size_t sendLen = communication::calculateExternalMessageV1Size((uint32_t)copyLen);
+            sendLen = communication::calculateExternalMessageV1Size((uint32_t)copyLen);
             m_externalService->send((const uint8_t*)&msg, sendLen);
             // fprintf(stdout, "send ExternalMessageV1 to server (command=%d)\n", msg.command);
         }
@@ -647,7 +649,7 @@ void Sniffer::onCommandReceived(uint32_t command, double time_ms, const uint8_t*
         printf("External Service Logging OFF\n");
 #endif
     }
-    else if (command == communication::CMD_SET_PARAMS)
+    else if (command == communication::CMD_SET_PARAMS || command == communication::CMD_GET_PARAMS_REQ)
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (m_systemCallback)
@@ -655,6 +657,25 @@ void Sniffer::onCommandReceived(uint32_t command, double time_ms, const uint8_t*
             m_systemCallback->onSystemCommand(command, data, length);
         }
     }
+}
+
+void Sniffer::sendSystemResponse(uint32_t cmd, const uint8_t* data, size_t len)
+{
+    communication::ExternalMessageV1 msg;
+    uint32_t copyLen;
+    size_t sendLen;
+
+    memset(&msg, 0, sizeof(msg));
+    strncpy(msg.magic_key, "v1.00", 8);
+    msg.command = cmd;
+    msg.time_ms_from_start = utils::StatusManager::getInstance().get_time_ms_from_start();
+    
+    copyLen = (len < sizeof(msg.data)) ? (uint32_t)len : (uint32_t)sizeof(msg.data);
+    msg.data_size = copyLen;
+    memcpy(msg.data, data, copyLen);
+    
+    sendLen = communication::calculateExternalMessageV1Size(copyLen);
+    m_externalService->send((const uint8_t*)&msg, sendLen);
 }
 
 void Sniffer::setLoggingState(bool enable)
