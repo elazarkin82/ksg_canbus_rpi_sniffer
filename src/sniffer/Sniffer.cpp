@@ -62,7 +62,7 @@ static bool isRealHardware(const char* interfaceName)
         return false;
     }
 
-    snprintf(path, sizeof(path), "/sys/class/net/%s/device", interfaceName);
+    snprintf(path, sizeof(path), "/sys/class/net/%s/uevent", interfaceName);
     return access(path, F_OK) == 0;
 }
 
