@@ -8,6 +8,7 @@ class SnifferRemoteSettings(tk.Toplevel):
         self.geometry("500x600")
         self.client = client
         self.entries = {}
+        self.string_vars = {}
         self.original_values = {}
         self.is_dirty = False
 
@@ -68,6 +69,7 @@ class SnifferRemoteSettings(tk.Toplevel):
             widget.destroy()
         
         self.entries = {}
+        self.string_vars = {}
         self.original_values = {}
         self.is_dirty = False
 
@@ -80,19 +82,20 @@ class SnifferRemoteSettings(tk.Toplevel):
             key = key.strip()
             val = val.strip()
 
+            # TODO delete this print at end of bug research
+            print(f"[DEBUG] UI parsing: key='{key}', val='{val}'")
+
             lbl = ttk.Label(self.scrollable_frame, text=key + ":")
             lbl.grid(row=row, column=0, sticky=tk.W, padx=5, pady=2)
 
-            entry = ttk.Entry(self.scrollable_frame, width=40)
-            entry.insert(0, val)
+            # Create and store StringVar to prevent garbage collection
+            var = tk.StringVar(value=val)
+            var.trace_add("write", lambda *args, k=key: self.on_change(k))
+            self.string_vars[key] = var
+
+            entry = ttk.Entry(self.scrollable_frame, width=40, textvariable=var)
             entry.grid(row=row, column=1, sticky=tk.EW, padx=5, pady=2)
             
-            # Trace changes
-            var = tk.StringVar()
-            var.set(val)
-            var.trace_add("write", lambda *args, k=key: self.on_change(k))
-            entry.config(textvariable=var)
-
             self.entries[key] = entry
             self.original_values[key] = val
             row += 1

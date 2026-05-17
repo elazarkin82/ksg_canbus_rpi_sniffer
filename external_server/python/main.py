@@ -241,6 +241,10 @@ class MainApp:
             if msg:
                 if msg.command == CMD_GET_PARAMS_RES:
                     params_str = msg.data.decode('utf-8', errors='replace')
+                    
+                    # TODO delete this print at end of bug research
+                    print(f"[DEBUG] Python received params_str: \"{params_str}\"")
+
                     if self.remote_settings_window and self.remote_settings_window.winfo_exists():
                         self.root.after(0, self.remote_settings_window.on_params_received, params_str)
                     continue
