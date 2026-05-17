@@ -54,6 +54,18 @@ static inline void extractLedName(const char* fullConfig, char* outLedName, size
     }
 }
 
+static bool isRealHardware(const char* interfaceName)
+{
+    char path[256];
+    if (!interfaceName || interfaceName[0] == '\0')
+    {
+        return false;
+    }
+
+    snprintf(path, sizeof(path), "/sys/class/net/%s/device", interfaceName);
+    return access(path, F_OK) == 0;
+}
+
 // --- Filter Engine ---
 namespace FilterEngine
 {
@@ -219,8 +231,6 @@ Sniffer::Sniffer(const SnifferParams& params)
       m_is_leds_feature_on(false),
       m_externalServiceConnected(false)
 {
-    char sysInterfaceName[64];
-    char compInterfaceName[64];
     bool sysLedExists;
     bool compLedExists;
     utils::LedControllerUtil& ledUtil = utils::LedControllerUtil::getInstance();
@@ -230,8 +240,8 @@ Sniffer::Sniffer(const SnifferParams& params)
     snprintf(m_computerCanConfig, sizeof(m_computerCanConfig), "%s", params.car_computer_can_name);
 
     // Parse out just the interface name
-    extractInterfaceName(m_systemCanConfig, sysInterfaceName, sizeof(sysInterfaceName));
-    extractInterfaceName(m_computerCanConfig, compInterfaceName, sizeof(compInterfaceName));
+    extractInterfaceName(m_systemCanConfig, m_systemInterfaceName, sizeof(m_systemInterfaceName));
+    extractInterfaceName(m_computerCanConfig, m_computerInterfaceName, sizeof(m_computerInterfaceName));
 
     // Parse out LED names
     extractLedName(m_systemCanConfig, m_systemLedName, sizeof(m_systemLedName));
@@ -258,8 +268,8 @@ Sniffer::Sniffer(const SnifferParams& params)
     }
 
     // Initialize CAN interfaces
-    m_carSystemCan = new canbus_communication::ObdCanbusCommunication(m_systemListener, sysInterfaceName);
-    m_carComputerCan = new canbus_communication::ObdCanbusCommunication(m_computerListener, compInterfaceName);
+    m_carSystemCan = new canbus_communication::ObdCanbusCommunication(m_systemListener, m_systemInterfaceName);
+    m_carComputerCan = new canbus_communication::ObdCanbusCommunication(m_computerListener, m_computerInterfaceName);
 
     // Initialize External Service (UDP)
     m_externalService = new communication::UdpCanbusCommunication(m_externalListener, "0.0.0.0", params.external_client_port, params.external_service_port);
@@ -410,7 +420,18 @@ void Sniffer::handleStatusChanged(Source source, base::CommunicationStatus statu
             switch (status)
             {
             case base::STATUS_CONNECTED:
-                ledUtil.setTimer(ledName, 1500, 1500);
+                {
+                    const char* iface = (source == SOURCE_CAR_SYSTEM) ? m_systemInterfaceName : m_computerInterfaceName;
+                    if (isRealHardware(iface))
+                    {
+                        ledUtil.setTimer(ledName, 1500, 1500);
+                    }
+                    else
+                    {
+                        // Fallback to init blink for virtual interfaces
+                        ledUtil.setTimer(ledName, LED_INIT_ON_MS, LED_INIT_OFF_MS);
+                    }
+                }
                 break;
 
             case base::STATUS_DISCONNECTED:

@@ -71,6 +71,8 @@ private:
     // Configuration strings
     char m_systemCanConfig[64];
     char m_computerCanConfig[64];
+    char m_systemInterfaceName[64];
+    char m_computerInterfaceName[64];
     char m_systemLedName[64];
     char m_computerLedName[64];
 
