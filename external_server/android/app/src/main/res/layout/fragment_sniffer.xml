@@ -1,29 +1,66 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="8dp">
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="CAN Traffic Monitor"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switch_group_by_id"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Group ID "
+            android:textOn=""
+            android:textOff=""
+            app:showText="false" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_clear_sniffer"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="CLEAR" />
+    </LinearLayout>
+
+    <!-- TODO delete this gui example -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="CAN Traffic Monitor"
-        android:textSize="20sp"
-        android:textStyle="bold" />
+        android:text="Double-click a row to open Decoder Editor"
+        android:textSize="10sp"
+        android:textColor="@android:color/darker_gray" />
 
-    <!-- TODO delete this gui example -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_marginTop="8dp">
 
         <TextView
+            android:id="@+id/mock_sniffer_table"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
-            android:text="[123.456] RX 0x123 [8] AA BB CC DD EE FF 00 11\n[123.458] RX 0x456 [4] 01 02 03 04\n[123.460] TX 0x789 [8] FF FF FF FF FF FF FF FF"
-            android:textSize="12sp" />
+            android:text="ID     Prot   PID  Dir    Data\n0x123  OBD2   0x0C RX     01 02 03 04 05 06 07 08\n0x456  Manual -    RX     AA BB CC DD\n0x789  Manual -    TX     FF FF FF FF"
+            android:textSize="12sp"
+            android:padding="8dp"
+            android:background="#F5F5F5"
+            android:clickable="true"
+            android:focusable="true" />
     </ScrollView>
 
 </LinearLayout>

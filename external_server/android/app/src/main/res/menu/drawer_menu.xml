@@ -2,8 +2,8 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <group android:checkableBehavior="single">
         <item
-            android:id="@+id/nav_dashboard"
-            android:title="Dashboard" />
+            android:id="@+id/nav_connection"
+            android:title="Connection &amp; Status" />
         <item
             android:id="@+id/nav_sniffer"
             android:title="CAN Sniffer" />
@@ -11,22 +11,19 @@
             android:id="@+id/nav_records"
             android:title="Records Library" />
         <item
-            android:id="@+id/nav_cockpit"
-            android:title="Virtual Cockpit" />
-        <item
             android:id="@+id/nav_rules"
             android:title="Rules Manager" />
-        <item
-            android:id="@+id/nav_decoder"
-            android:title="Decoder Editor" />
         <item
             android:id="@+id/nav_obd"
             android:title="OBD2 Scanner" />
         <item
-            android:id="@+id/nav_status"
-            android:title="Status Window" />
+            android:id="@+id/nav_settings_remote"
+            android:title="Remote Settings (RPi)" />
         <item
-            android:id="@+id/nav_settings"
-            android:title="Settings" />
+            android:id="@+id/nav_settings_local"
+            android:title="Local Settings" />
+        <item
+            android:id="@+id/nav_cockpit"
+            android:title="Virtual Cockpit" />
     </group>
 </menu>

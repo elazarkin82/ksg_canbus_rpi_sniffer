@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
@@ -8,21 +9,84 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="OBD2 Scanner"
+        android:text="OBD2 Active Scanner"
         android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_toggle_polling"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="START POLLING" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="100dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:hint="Int (ms)">
+            <com.google.android.material.textfield.TextInputEditText
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:text="100" />
+        </com.google.android.material.textfield.TextInputLayout>
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Select PIDs to Poll:"
         android:textStyle="bold" />
 
     <!-- TODO delete this gui example -->
     <GridLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:columnCount="2">
+        android:columnCount="2"
+        android:padding="8dp">
 
-        <TextView android:text="RPM: 2500" android:padding="8dp"/>
-        <TextView android:text="Speed: 60 km/h" android:padding="8dp"/>
-        <TextView android:text="Coolant: 90°C" android:padding="8dp"/>
-        <TextView android:text="Load: 45%" android:padding="8dp"/>
+        <CheckBox android:text="RPM (0x0C)" android:checked="true" />
+        <CheckBox android:text="Speed (0x0D)" android:checked="true" />
+        <CheckBox android:text="Engine Load (0x04)" />
+        <CheckBox android:text="Coolant Temp (0x05)" />
     </GridLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@android:color/darker_gray"
+        android:layout_marginVertical="8dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Live Values:"
+        android:textStyle="bold" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <TableLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:stretchColumns="1">
+            <TableRow>
+                <TextView android:text="RPM" android:padding="8dp" android:textStyle="bold"/>
+                <TextView android:text="2500" android:padding="8dp" android:gravity="end"/>
+            </TableRow>
+            <TableRow>
+                <TextView android:text="Speed" android:padding="8dp" android:textStyle="bold"/>
+                <TextView android:text="60 km/h" android:padding="8dp" android:gravity="end"/>
+            </TableRow>
+        </TableLayout>
+    </ScrollView>
 
 </LinearLayout>

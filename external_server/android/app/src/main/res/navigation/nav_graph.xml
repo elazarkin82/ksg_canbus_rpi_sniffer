@@ -3,13 +3,13 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/nav_graph"
-    app:startDestination="@id/nav_dashboard">
+    app:startDestination="@id/nav_connection">
 
     <fragment
-        android:id="@+id/nav_dashboard"
-        android:name="elazarkin.ksg.external.service.fragments.DashboardFragment"
-        android:label="Dashboard"
-        tools:layout="@layout/fragment_dashboard" />
+        android:id="@+id/nav_connection"
+        android:name="elazarkin.ksg.external.service.fragments.ConnectionFragment"
+        android:label="Connection &amp; Status"
+        tools:layout="@layout/fragment_connection" />
 
     <fragment
         android:id="@+id/nav_sniffer"
@@ -24,22 +24,10 @@
         tools:layout="@layout/fragment_records" />
 
     <fragment
-        android:id="@+id/nav_cockpit"
-        android:name="elazarkin.ksg.external.service.fragments.CockpitFragment"
-        android:label="Virtual Cockpit"
-        tools:layout="@layout/fragment_cockpit" />
-
-    <fragment
         android:id="@+id/nav_rules"
         android:name="elazarkin.ksg.external.service.fragments.RulesFragment"
         android:label="Rules Manager"
         tools:layout="@layout/fragment_rules" />
-
-    <fragment
-        android:id="@+id/nav_decoder"
-        android:name="elazarkin.ksg.external.service.fragments.DecoderFragment"
-        android:label="Decoder Editor"
-        tools:layout="@layout/fragment_decoder" />
 
     <fragment
         android:id="@+id/nav_obd"
@@ -48,14 +36,20 @@
         tools:layout="@layout/fragment_obd" />
 
     <fragment
-        android:id="@+id/nav_status"
-        android:name="elazarkin.ksg.external.service.fragments.StatusFragment"
-        android:label="Status Window"
-        tools:layout="@layout/fragment_status" />
+        android:id="@+id/nav_settings_remote"
+        android:name="elazarkin.ksg.external.service.fragments.RemoteSettingsFragment"
+        android:label="Remote Settings (RPi)"
+        tools:layout="@layout/fragment_remote_settings" />
 
     <fragment
-        android:id="@+id/nav_settings"
-        android:name="elazarkin.ksg.external.service.fragments.SettingsFragment"
-        android:label="Settings"
-        tools:layout="@layout/fragment_settings" />
+        android:id="@+id/nav_settings_local"
+        android:name="elazarkin.ksg.external.service.fragments.LocalSettingsFragment"
+        android:label="Local Settings"
+        tools:layout="@layout/fragment_local_settings" />
+
+    <fragment
+        android:id="@+id/nav_cockpit"
+        android:name="elazarkin.ksg.external.service.fragments.CockpitFragment"
+        android:label="Virtual Cockpit"
+        tools:layout="@layout/fragment_cockpit" />
 </navigation>
