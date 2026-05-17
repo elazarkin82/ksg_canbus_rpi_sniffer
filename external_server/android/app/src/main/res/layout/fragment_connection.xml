@@ -30,9 +30,10 @@
                 android:layout_height="wrap_content"
                 android:hint="Sniffer IP Address">
                 <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/edit_ip"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="192.168.1.10" />
+                    android:text="192.168.4.1" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <LinearLayout
@@ -48,9 +49,10 @@
                     android:layout_marginEnd="4dp"
                     android:hint="Remote Port">
                     <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/edit_remote_port"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="5001" />
+                        android:text="9095" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
@@ -60,9 +62,10 @@
                     android:layout_marginStart="4dp"
                     android:hint="Local Port">
                     <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/edit_local_port"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="5002" />
+                        android:text="9096" />
                 </com.google.android.material.textfield.TextInputLayout>
             </LinearLayout>
 

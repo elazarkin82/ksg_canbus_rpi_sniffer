@@ -54,7 +54,7 @@ The Android External Server is a professional-grade mobile station designed to i
     *   **Double-Click:** Opens the contextual **Decoder Editor Dialog** for the selected ID/PID.
 *   **Recording:** Floating Action Button (FAB) toggles real-time CSV logging.
 
-### 3.3 Records Management & Sharing
+### 3.3 Records Management & Library
 *   **The Recording Workflow:**
     1.  User starts recording from the Sniffer.
     2.  On Stop: A mandatory dialog forces the user to provide a filename.
@@ -86,10 +86,30 @@ The Android External Server is a professional-grade mobile station designed to i
 
 ---
 
-## 4. Data Structures & Compatibility
-*   **Profiles (.json):** Must follow the Python `ProfileManager` structure.
-*   **Filters:** `CanFilterRule` C-struct alignment must be strictly maintained for JNI/NDK compatibility.
-*   **Endianness:** Support for both Big-Endian (Motorola) and Little-Endian (Intel) decoding.
+## 4. Connectivity Engine Details
+
+### 4.1 Connection Lifecycle & Logic
+The connectivity engine mimics the Python `UdpClient` and the `sniffer_client` library.
+
+*   **Default Configuration:**
+    *   **Sniffer IP:** `192.168.4.1` (Default for RPi Access Point).
+    *   **Sniffer Port:** `9095`.
+    *   **Local Port:** `9096`.
+*   **Handshake & Heartbeat:**
+    *   Upon "Connect", the app starts a background thread that sends `CMD_KEEPALIVE` (0x1001) every 500ms.
+    *   **Handshake:** Connection is considered "Pending" until the first response from the Sniffer is received.
+    *   **Timeout:** If no response is received for 3000ms, the UI switches to "Disconnected/Reconnecting".
+*   **Metadata Integration:**
+    *   The Sniffer includes system metadata in its Keep-Alive response payload.
+    *   **Metadata Fields:** CPU Temperature, System Load, Uptime, Memory usage.
+    *   **UI Display:** Decoded metadata is printed to the **Status Console** in the `ConnectionFragment` in real-time.
+
+### 4.2 Native Implementation
+*   **Sniffer Client Library:** The Android NDK builds the `sniffer_client.cpp` as a shared library.
+*   **Thread Safety:** Native mutexes protect the RX queue and the status buffers.
+*   **Data Alignment:** Uses `#pragma pack(push, 1)` for all shared structures between Java, C++, and the RPi.
+
+---
 
 ## 5. Non-Functional Requirements
 *   **Latency:** End-to-end (Sensor to Bus) must be <30ms.
