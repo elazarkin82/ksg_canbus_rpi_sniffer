@@ -20,6 +20,8 @@ namespace core
 static const char* DEFAULT_PARAMS =
     "car_system_can_name=vcan0\n"
     "car_computer_can_name=vcan1\n"
+    "car_system_baudrate=s6\n"
+    "car_computer_baudrate=s6\n"
     "external_service_port=9095\n"
     "external_client_port=9096\n";
 
@@ -94,10 +96,11 @@ static inline void parseCanConfig(const char* rawConfig, CanInterfaceConfig* out
 class UsbWatchdog
 {
 public:
-    UsbWatchdog(const char* canInterfaceName, const char* usbUniqName) : m_running(false)
+    UsbWatchdog(const char* canInterfaceName, const char* usbUniqName, const char* baudrate) : m_running(false)
     {
         snprintf(m_canInterfaceName, sizeof(m_canInterfaceName), "%s", canInterfaceName);
         snprintf(m_usbUniqName, sizeof(m_usbUniqName), "%s", usbUniqName);
+        snprintf(m_baudrate, sizeof(m_baudrate), "%s", baudrate ? baudrate : "s6");
     }
 
     ~UsbWatchdog()
@@ -313,7 +316,7 @@ private:
                     fprintf(stdout, "[UsbWatchdog] USB device %s detected. Mapping to /dev/%s...\n", m_usbUniqName, ttyName);
 #endif
 
-                    snprintf(cmd, sizeof(cmd), "slcand -f -o -c -s6 /dev/%s %s &", ttyName, m_canInterfaceName);
+                    snprintf(cmd, sizeof(cmd), "slcand -f -o -c -%s /dev/%s %s &", m_baudrate, ttyName, m_canInterfaceName);
                     res = system(cmd);
                     (void)res;
 
@@ -352,6 +355,7 @@ private:
 
     char m_canInterfaceName[64];
     char m_usbUniqName[64];
+    char m_baudrate[16];
     std::atomic<bool> m_running;
     std::thread m_thread;
     std::condition_variable m_cv;
@@ -446,6 +450,8 @@ void MainService::createSniffer()
     sniffer::SnifferParams params;
     const char* sysNameRaw;
     const char* compNameRaw;
+    const char* sysBaudrate;
+    const char* compBaudrate;
     CanInterfaceConfig sysConfig, compConfig;
     int servicePort, clientPort;
     char setting_buf[1024];
@@ -458,6 +464,8 @@ void MainService::createSniffer()
 
     sysNameRaw = m_params->get("car_system_can_name");
     compNameRaw = m_params->get("car_computer_can_name");
+    sysBaudrate = m_params->get("car_system_baudrate");
+    compBaudrate = m_params->get("car_computer_baudrate");
 
     parseCanConfig(sysNameRaw ? sysNameRaw : "vcan0", &sysConfig);
     parseCanConfig(compNameRaw ? compNameRaw : "vcan1", &compConfig);
@@ -495,14 +503,14 @@ void MainService::createSniffer()
     if (strlen(sysConfig.usbId) > 0)
     {
         fprintf(stdout, "[MainService] Starting USB (%s) watchdog for System CAN...\n", sysConfig.usbId);
-        m_systemWatchdog = new UsbWatchdog(sysConfig.interfaceName, sysConfig.usbId);
+        m_systemWatchdog = new UsbWatchdog(sysConfig.interfaceName, sysConfig.usbId, sysBaudrate);
         m_systemWatchdog->start();
     }
 
     if (strlen(compConfig.usbId) > 0)
     {
         fprintf(stdout, "[MainService] Starting USB (%s) watchdog for Computer CAN...\n", compConfig.usbId);
-        m_computerWatchdog = new UsbWatchdog(compConfig.interfaceName, compConfig.usbId);
+        m_computerWatchdog = new UsbWatchdog(compConfig.interfaceName, compConfig.usbId, compBaudrate);
         m_computerWatchdog->start();
     }
 
