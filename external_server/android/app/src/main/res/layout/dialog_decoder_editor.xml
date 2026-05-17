@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
@@ -16,37 +17,7 @@
             android:textSize="18sp"
             android:textStyle="bold" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Protocol Settings"
-            android:textStyle="bold" />
-
-        <Spinner
-            android:id="@+id/spinner_protocol"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:entries="@array/protocols" />
-
-        <CheckBox
-            android:id="@+id/cb_has_pid"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Has PID"
-            android:checked="true" />
-
-        <com.google.android.material.textfield.TextInputLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="PID Index (Byte)">
-            <com.google.android.material.textfield.TextInputEditText
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="0"
-                android:inputType="number" />
-        </com.google.android.material.textfield.TextInputLayout>
-
+        <!-- Signal Definition Section -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -90,11 +61,69 @@
             </com.google.android.material.textfield.TextInputLayout>
         </LinearLayout>
 
+        <!-- Reverse Engineering Section -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="Reverse Engineering (Formula)"
+            android:textStyle="bold"
+            android:textColor="?attr/colorPrimary" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+            <com.google.android.material.button.MaterialButton
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="RPM Preset"
+                android:textSize="10sp" />
+            <com.google.android.material.button.MaterialButton
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="Speed Preset"
+                android:textSize="10sp" />
+        </LinearLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="Manual Formula (e.g. x[0]*256 + x[1])">
+            <com.google.android.material.textfield.TextInputEditText
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="(x[2]*256 + x[3]) / 4.0" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Traffic Preview Section -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="Live Traffic (for ID 0x123)"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="#EEEEEE"
+            android:padding="8dp"
+            android:fontFamily="monospace"
+            android:textSize="10sp"
+            android:text="[14:45:01.123] RX 01 02 03 04 05 06 07 08\n[14:45:01.223] RX 01 02 04 05 05 06 07 08\n[14:45:01.323] RX 01 02 05 01 05 06 07 08" />
+
         <com.google.android.material.button.MaterialButton
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="SAVE DECODER" />
+            android:layout_marginTop="24dp"
+            android:text="SAVE &amp; APPLY DECODER" />
 
     </LinearLayout>
 </ScrollView>

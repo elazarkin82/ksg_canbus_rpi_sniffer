@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/menu_protocol"
+        android:title="Protocol Settings">
+        <menu>
+            <item android:id="@+id/proto_manual" android:title="Manual" />
+            <item android:id="@+id/proto_obd2" android:title="OBD2" />
+            <item android:id="@+id/proto_uds" android:title="UDS" />
+            <item android:id="@+id/proto_j1939" android:title="J1939" />
+            <item android:id="@+id/menu_has_pid" android:title="Toggle Has PID" />
+            <item android:id="@+id/menu_set_pid_idx" android:title="Set PID Index..." />
+        </menu>
+    </item>
+    <item
+        android:id="@+id/menu_presets"
+        android:title="Common Presets">
+        <menu>
+            <item android:id="@+id/preset_rpm" android:title="Engine RPM (2 Bytes, Div 4)" />
+            <item android:id="@+id/preset_speed" android:title="Vehicle Speed (1 Byte)" />
+            <item android:id="@+id/preset_percent" android:title="Percent (1 Byte)" />
+        </menu>
+    </item>
+    <item
+        android:id="@+id/menu_mapping"
+        android:title="Map to Control Input">
+        <menu>
+            <item android:id="@+id/map_steering" android:title="Map to Steering" />
+            <item android:id="@+id/map_throttle" android:title="Map to Throttle" />
+            <item android:id="@+id/map_brake" android:title="Map to Brake" />
+        </menu>
+    </item>
+    <item android:id="@+id/menu_clear_decoder" android:title="Clear Decoder" />
+</menu>

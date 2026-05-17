@@ -25,6 +25,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Group ID "
+            android:checked="true"
             android:textOn=""
             android:textOff=""
             app:showText="false" />
@@ -37,30 +38,73 @@
             android:text="CLEAR" />
     </LinearLayout>
 
-    <!-- TODO delete this gui example -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Double-click a row to open Decoder Editor"
+        android:text="Long-click for Protocol/PID. Double-click for Decoder Editor."
         android:textSize="10sp"
         android:textColor="@android:color/darker_gray" />
 
+    <!-- Mock Table Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#DDDDDD"
+        android:padding="4dp"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp">
+        <TextView android:layout_width="60dp" android:layout_height="wrap_content" android:text="ID" android:textStyle="bold" android:textSize="12sp"/>
+        <TextView android:layout_width="50dp" android:layout_height="wrap_content" android:text="Count" android:textStyle="bold" android:textSize="12sp"/>
+        <TextView android:layout_width="50dp" android:layout_height="wrap_content" android:text="Prot" android:textStyle="bold" android:textSize="12sp"/>
+        <TextView android:layout_width="40dp" android:layout_height="wrap_content" android:text="PID" android:textStyle="bold" android:textSize="12sp"/>
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Data (Hex)" android:textStyle="bold" android:textSize="12sp"/>
+    </LinearLayout>
+
+    <!-- Mock Table Rows -->
     <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_marginTop="8dp">
-
-        <TextView
-            android:id="@+id/mock_sniffer_table"
+        android:layout_height="match_parent">
+        <LinearLayout
+            android:id="@+id/mock_table_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:text="ID     Prot   PID  Dir    Data\n0x123  OBD2   0x0C RX     01 02 03 04 05 06 07 08\n0x456  Manual -    RX     AA BB CC DD\n0x789  Manual -    TX     FF FF FF FF"
-            android:textSize="12sp"
-            android:padding="8dp"
-            android:background="#F5F5F5"
-            android:clickable="true"
-            android:focusable="true" />
+            android:orientation="vertical">
+
+            <!-- Row 1 -->
+            <LinearLayout
+                android:id="@+id/mock_row_1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="8dp"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:orientation="horizontal">
+                <TextView android:layout_width="60dp" android:layout_height="wrap_content" android:text="0x123" android:textSize="12sp"/>
+                <TextView android:id="@+id/count_1" android:layout_width="50dp" android:layout_height="wrap_content" android:text="142" android:textSize="12sp"/>
+                <TextView android:layout_width="50dp" android:layout_height="wrap_content" android:text="OBD2" android:textSize="12sp"/>
+                <TextView android:layout_width="40dp" android:layout_height="wrap_content" android:text="0x0C" android:textSize="12sp"/>
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="01 02 03 04 05 06 07 08" android:textSize="12sp" android:fontFamily="monospace"/>
+            </LinearLayout>
+
+            <!-- Row 2 -->
+            <LinearLayout
+                android:id="@+id/mock_row_2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="8dp"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:orientation="horizontal">
+                <TextView android:layout_width="60dp" android:layout_height="wrap_content" android:text="0x456" android:textSize="12sp"/>
+                <TextView android:id="@+id/count_2" android:layout_width="50dp" android:layout_height="wrap_content" android:text="89" android:textSize="12sp"/>
+                <TextView android:layout_width="50dp" android:layout_height="wrap_content" android:text="Manual" android:textSize="12sp"/>
+                <TextView android:layout_width="40dp" android:layout_height="wrap_content" android:text="-" android:textSize="12sp"/>
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="AA BB CC DD" android:textSize="12sp" android:fontFamily="monospace"/>
+            </LinearLayout>
+
+        </LinearLayout>
     </ScrollView>
 
 </LinearLayout>

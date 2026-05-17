@@ -4,9 +4,11 @@ import android.app.AlertDialog;
 import android.os.Bundle;
 import android.view.GestureDetector;
 import android.view.LayoutInflater;
+import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.PopupMenu;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -31,20 +33,69 @@ public class SnifferFragment extends Fragment {
 
         // TODO delete this gui example: Handle Clear button
         binding.btnClearSniffer.setOnClickListener(v -> {
-            binding.mockSnifferTable.setText("ID     Prot   PID  Dir    Data\n");
+            binding.mockTableContainer.removeAllViews();
             Toast.makeText(getContext(), "Sniffer Cleared", Toast.LENGTH_SHORT).show();
         });
 
-        // TODO delete this gui example: Double-click detector for the mock table
+        // Setup interaction for Mock Row 1
+        setupMockRow(binding.mockRow1);
+        
+        // Setup interaction for Mock Row 2
+        setupMockRow(binding.mockRow2);
+    }
+
+    private void setupMockRow(View row) {
+        // Long click for Context Menu (Protocol, PID, Presets, Mapping)
+        row.setOnLongClickListener(v -> {
+            showContextMenu(v);
+            return true;
+        });
+
+        // Double tap for Decoder Editor
         final GestureDetector gestureDetector = new GestureDetector(getContext(), new GestureDetector.SimpleOnGestureListener() {
             @Override
             public boolean onDoubleTap(@NonNull MotionEvent e) {
                 showDecoderEditorDialog();
                 return true;
             }
+            
+            @Override
+            public boolean onSingleTapConfirmed(@NonNull MotionEvent e) {
+                // Just for visual feedback
+                row.setSelected(true);
+                return true;
+            }
         });
 
-        binding.mockSnifferTable.setOnTouchListener((v, event) -> gestureDetector.onTouchEvent(event));
+        row.setOnTouchListener((v, event) -> {
+            gestureDetector.onTouchEvent(event);
+            return false; // Let it propagate to long click
+        });
+    }
+
+    private void showContextMenu(View view) {
+        PopupMenu popup = new PopupMenu(getContext(), view);
+        popup.getMenuInflater().inflate(R.menu.sniffer_context_menu, popup.getMenu());
+        
+        popup.setOnMenuItemClickListener(item -> {
+            int itemId = item.getItemId();
+            if (itemId == R.id.menu_has_pid) {
+                Toast.makeText(getContext(), "Toggle Has PID (Mock)", Toast.LENGTH_SHORT).show();
+                return true;
+            } else if (itemId == R.id.menu_set_pid_idx) {
+                Toast.makeText(getContext(), "Set PID Index Dialog (Mock)", Toast.LENGTH_SHORT).show();
+                return true;
+            } else if (itemId == R.id.preset_rpm || itemId == R.id.preset_speed) {
+                Toast.makeText(getContext(), "Preset Applied (Mock)", Toast.LENGTH_SHORT).show();
+                return true;
+            } else if (itemId == R.id.map_steering) {
+                Toast.makeText(getContext(), "Mapped to Steering (Mock)", Toast.LENGTH_SHORT).show();
+                return true;
+            }
+            return false;
+        });
+        
+        popup.show();
     }
 
     private void showDecoderEditorDialog() {
@@ -52,7 +103,7 @@ public class SnifferFragment extends Fragment {
         
         new AlertDialog.Builder(getContext())
                 .setView(dialogView)
-                .setPositiveButton("Save", (dialog, which) -> {
+                .setPositiveButton("Save & Apply", (dialog, which) -> {
                     Toast.makeText(getContext(), "Decoder Saved (Mock)", Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton("Cancel", null)

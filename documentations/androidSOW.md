@@ -1,82 +1,97 @@
-# Comprehensive Statement of Work (SOW) - Android External Server
+# Detailed Statement of Work (SOW) - Android External Server
 
-## 1. Project Overview
-The Android External Server is a professional mobile application designed to act as a remote control and diagnostic hub for the `RpiCanbusSniffer`. It provides real-time CAN bus monitoring, high-performance data recording, and active signal injection. The application maintains 100% data compatibility with the existing Python backend while leveraging mobile-native capabilities like touch gestures, gyroscopic sensors, and system-level sharing.
+## 1. Project Mission & Objectives
+The Android External Server is a professional-grade mobile station designed to interface with the `RpiCanbusSniffer`. It provides high-performance CAN bus monitoring, reverse engineering tools, and active intervention capabilities. 
 
----
-
-## 2. Technical Architecture & Constraints
-
-### 2.1 Native Core Engine (C++/NDK)
-*   **Implementation:** C-style C++ for deterministic performance.
-*   **Networking:** Persistent UDP/TCP client utilizing native sockets to handle `ExternalMessageV1` packets.
-*   **Throughput:** Must support sustained traffic of 2000+ messages per second.
-*   **JNI Bridge:** Optimized data marshaling to minimize overhead when passing CAN frames to the Java layer.
-
-### 2.2 Application Framework
-*   **Background Resilience:** A `Foreground Service` ensures the UDP connection and recording remain active when the app is in the background.
-*   **Connectivity Management:** Auto-reconnect with exponential backoff and a "Keep-Alive" (Heartbeat) mechanism.
+**Key Objectives:**
+*   **Performance:** Sustained processing of 2000+ CAN messages per second via NDK.
+*   **Compatibility:** 100% parity with Python External Server data structures (CSV logs, JSON profiles).
+*   **Safety:** Real-time "Panic" mechanism to restore vehicle passthrough mode.
+*   **Portability:** Mobile-first UX utilizing touch gestures and gyroscopic sensors for vehicle control.
 
 ---
 
-## 3. Functional Requirements - Screen by Screen
+## 2. Technical Architecture Specification
 
-### 3.1 Connection & Status (Primary Screen)
-*   **Purpose:** The main entry point for establishing communication and monitoring system health.
-*   **Connection Controls:** 
-    *   Fields for Sniffer IP, Remote Port, and Local Port.
-    *   Connect/Disconnect toggle button.
-*   **Status Indicators:** Real-time Round Trip Time (RTT) and Connection State (LED).
-*   **Status Console:** A scrollable text area displaying system-level logs (similar to Python's `SnifferStatusWindow`).
-*   **Panic Button:** High-priority Red button to instantly send a "Clear All Filters" command to the RPi.
+### 2.1 Native Core Engine (C-Style C++ / NDK)
+*   **Logic:** Implementation of the low-level communication protocol in C++ to ensure deterministic latency.
+*   **Networking:** Persistent UDP/TCP Client managing `ExternalMessageV1` packets.
+*   **Data Flow:** 
+    *   **RX Thread:** High-speed listener for incoming CAN frames.
+    *   **Command Thread:** Serialization of outgoing control commands and filter rules.
+    *   **Logging Thread:** Synchronous file I/O for CSV recording to prevent main-thread jank.
+*   **JNI Interface:** Optimized data marshaling using direct byte buffers or primitive arrays to minimize garbage collection overhead.
 
-### 3.2 CAN Sniffer (Live Monitor)
-*   **Live Traffic Table:** Columns: Timestamp, ID (Hex), Protocol, PID, DLC, Data (Hex), Direction.
-*   **Navigation to Decoder:** Clicking/Double-clicking a message entry opens the **Decoder Editor** specifically for that CAN ID.
-*   **Display Logic:**
-    *   **ID Grouping:** Collapses traffic by ID, showing the most recent frame.
-    *   **Change Tracking:** Individual bytes highlight when their value changes.
-*   **Recording FAB:** A Floating Action Button to toggle the recording state.
+### 2.2 Application Framework (Android / Java)
+*   **Lifecycle Management:** A `Foreground Service` maintains the network heartbeat even when the screen is off or the user switches apps.
+*   **Notification Integration:** Sticky notification showing real-time status (Connected/Recording) and a "Stop" action button.
+*   **Threading Model:**
+    *   **UI Thread:** Strictly for rendering and user interaction.
+    *   **Service Thread:** Handles the JNI bridge and logic coordination.
+    *   **Worker Threads:** Used for JSON profile parsing and local storage operations.
 
-### 3.3 Records Management & Library
-*   **Naming Protocol:** Upon stopping a recording, a mandatory Modal Dialog appears for custom filename entry (Default: `CAN_LOG_YYYY_MM_DD_HHMM.csv`).
-*   **Sharing Interface:** Integration with Android Native Share Sheet (WhatsApp, Telegram, Email) via `FileProvider`.
+---
+
+## 3. Functional Requirements - Detailed Module Specification
+
+### 3.1 Connection & System Status (Primary Entry)
+*   **User Interface:**
+    *   **Connection Pane:** Input fields for Sniffer IP, Remote Port, and Local Port with persistent storage (SharedPreferences).
+    *   **Real-Time Metrics:** Live display of RX/TX Bitrate (msgs/sec), Packet Loss %, and RTT (Round Trip Time).
+    *   **Status Console:** A scrollable text area (Terminal-style) displaying low-level system events (e.g., "Socket Bound", "JNI Library Loaded", "Handshake Successful").
+*   **Panic Mechanism:** A persistent RED button in the Toolbar. Sending `CMD_SET_FILTERS` with an empty rule set to restore transparency.
+
+### 3.2 CAN Sniffer (The Reverse Engineering Hub)
+*   **The Grouped Table:**
+    *   **Grouping Logic:** By default, messages are grouped by `CAN_ID` (and `PID` if applicable). Each row represents a unique signal source.
+    *   **Columns:** ID, Protocol, PID, Direction, Counter (total messages for this ID), Interval (ms since last message), Data (Hex), Decoded Value.
+    *   **Visual Feedback:** Byte highlighting (colors) for changed values within the data stream.
+*   **Interaction Model:**
+    *   **Long-Press (Context Menu):** Replicates Python's right-click. Menu items:
+        *   **Protocol Configuration:** Select Manual/OBD2/UDS/J1939. Toggle "Has PID" and set "PID Index".
+        *   **Common Presets:** Apply standard formulas (e.g., Engine RPM, Speed).
+        *   **Control Mapping:** Map the ID to Virtual Cockpit inputs (Steering, Throttle, etc.).
+    *   **Double-Click:** Opens the contextual **Decoder Editor Dialog** for the selected ID/PID.
+*   **Recording:** Floating Action Button (FAB) toggles real-time CSV logging.
+
+### 3.3 Records Management & Sharing
+*   **The Recording Workflow:**
+    1.  User starts recording from the Sniffer.
+    2.  On Stop: A mandatory dialog forces the user to provide a filename.
+    3.  File format: `CSV` with headers `timestamp, time_ms, direction, can_id, data`.
+*   **Records Library:**
+    *   Management of all local `.csv` files.
+    *   **Sharing Sheet:** Native Android sharing to WhatsApp, Telegram, Email, or Cloud (Google Drive).
 
 ### 3.4 Decoder Editor (Contextual Dialog)
-*   **Access:** Opened only from the CAN Sniffer.
-*   **Protocol Settings:**
-    *   Protocol selection (Manual, OBD2, UDS, ISO-TP, J1939).
-    *   **Has PID Toggle:** Enable/Disable PID tracking for the selected ID.
-    *   **PID Index:** Specify which byte (0-7) contains the PID.
-*   **Signal Mapping:** Define Start Bit, Length, Factor, Offset, and Endianness.
-*   **Integrity Checks:** CRC/Checksum validation and Rolling Counter tracking.
+*   **Access Point:** Triggered from the Sniffer table.
+*   **Sections:**
+    1.  **Header:** Displays current CAN ID and PID.
+    2.  **Signal Params:** Input fields for Name, Start Bit, Length, Factor, Offset, and Endianness.
+    3.  **Reverse Engineering Tool:** 
+        *   Dropdown list of presets (RPM, Temp, etc.).
+        *   Manual Formula field (supporting standard math: `x[0]*256 + x[1]`).
+    4.  **Live Traffic Preview:** A mini-table at the bottom showing the last 10-20 raw messages for *this specific ID* to assist in real-time formula verification.
 
-### 3.5 OBD2 Scanner (Active Diagnostics)
-*   **Selection:** Checkbox list of standard OBD2 PIDs.
-*   **Polling Control:** 
-    *   **Start/Stop Polling:** Button to begin periodic queries for the selected items.
-    *   **Interval Setting:** Configurable polling frequency (in ms/seconds).
-*   **Visual Grid:** Real-time display of ECU reported values for active PIDs.
+### 3.5 OBD2 Scanner (Active Diagnostic Tool)
+*   **Polling Logic:**
+    *   User selects PIDs from a predefined list.
+    *   "Start Polling" button triggers periodic `CMD_CANBUS_TO_CAR` requests.
+    *   User-defined interval (e.g., 100ms, 1000ms).
+*   **Display:** A grid view showing the status and decoded value of each active PID.
 
-### 3.6 Virtual Cockpit (Active Control)
-*   **Sensory Controls:** Gyro-Steering (tilt) and vertical touch sliders for Throttle/Brake.
-*   **UI Controls:** Toggle buttons for Lights, Wipers, and Indicators.
-
-### 3.7 Rules Manager
-*   **Interface:** Create and manage `PASS`, `DROP`, and `MODIFY` rules.
-*   **Sync:** Upload current filter set to the RPi.
-
-### 3.8 Remote Settings (RPi Internal)
-*   **Mechanism:** Dedicated screen for RPi internal parameters.
-*   **GET:** Query the RPi for its current active hardware configuration (Interface, Bitrate, etc.).
-*   **SET:** Apply and save new hardware configurations to the RPi.
-
-### 3.9 Local Settings (App Side)
-*   **UI/UX:** Theme selection, WakeLock toggle, and Sensor calibration.
+### 3.6 Virtual Cockpit (Control Module)
+*   **Sensors:** Gyro-Steering (tilt phone to steer). Vertical sliders for Throttle/Brake.
+*   **Mapping Logic:** Converts sensor values into CAN frames using the "Reverse Formula" defined in the profile.
 
 ---
 
-## 4. Non-Functional & Safety Requirements
-*   **Latency:** End-to-end latency <50ms.
-*   **Safety Default:** On app disconnect, the RPi must return to "Passthrough" state.
-*   **Compatibility:** All files (CSV/JSON) must be interchangeable with the Python version.
+## 4. Data Structures & Compatibility
+*   **Profiles (.json):** Must follow the Python `ProfileManager` structure.
+*   **Filters:** `CanFilterRule` C-struct alignment must be strictly maintained for JNI/NDK compatibility.
+*   **Endianness:** Support for both Big-Endian (Motorola) and Little-Endian (Intel) decoding.
+
+## 5. Non-Functional Requirements
+*   **Latency:** End-to-end (Sensor to Bus) must be <30ms.
+*   **Safety:** Watchdog timer on the RPi resets filters if the Android Heartbeat is lost for >1000ms.
+*   **Power:** Background service must optimize CPU usage when no traffic is being recorded.
