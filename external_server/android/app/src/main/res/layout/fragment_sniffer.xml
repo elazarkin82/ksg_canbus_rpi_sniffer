@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="CAN Traffic Monitor"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <!-- TODO delete this gui example -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginTop="8dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:text="[123.456] RX 0x123 [8] AA BB CC DD EE FF 00 11\n[123.458] RX 0x456 [4] 01 02 03 04\n[123.460] TX 0x789 [8] FF FF FF FF FF FF FF FF"
+            android:textSize="12sp" />
+    </ScrollView>
+
+</LinearLayout>

@@ -82,9 +82,6 @@ class SnifferRemoteSettings(tk.Toplevel):
             key = key.strip()
             val = val.strip()
 
-            # TODO delete this print at end of bug research
-            print(f"[DEBUG] UI parsing: key='{key}', val='{val}'")
-
             lbl = ttk.Label(self.scrollable_frame, text=key + ":")
             lbl.grid(row=row, column=0, sticky=tk.W, padx=5, pady=2)
 

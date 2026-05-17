@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="OBD2 Scanner"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <!-- TODO delete this gui example -->
+    <GridLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:columnCount="2">
+
+        <TextView android:text="RPM: 2500" android:padding="8dp"/>
+        <TextView android:text="Speed: 60 km/h" android:padding="8dp"/>
+        <TextView android:text="Coolant: 90°C" android:padding="8dp"/>
+        <TextView android:text="Load: 45%" android:padding="8dp"/>
+    </GridLayout>
+
+</LinearLayout>
