@@ -23,6 +23,9 @@
             android:id="@+id/nav_settings_local"
             android:title="Local Settings" />
         <item
+            android:id="@+id/nav_system_logs"
+            android:title="System Logs" />
+        <item
             android:id="@+id/nav_cockpit"
             android:title="Virtual Cockpit" />
     </group>

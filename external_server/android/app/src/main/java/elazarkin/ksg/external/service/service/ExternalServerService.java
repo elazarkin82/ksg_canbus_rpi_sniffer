@@ -13,6 +13,8 @@ import android.os.IBinder;
 import android.os.Looper;
 import androidx.core.app.NotificationCompat;
 import elazarkin.ksg.external.service.jni.NativeInterface;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ExternalServerService extends Service {
     private static final String CHANNEL_ID = "ExternalServerChannel";
@@ -23,10 +25,12 @@ public class ExternalServerService extends Service {
     private boolean isRunning = false;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private StatusListener statusListener;
+    private final List<String> systemLogs = new ArrayList<>();
     
     public interface StatusListener {
         void onStatusUpdate(String status);
         void onConnectionStateChanged(boolean connected);
+        void onLogReceived(String log);
     }
 
     public class LocalBinder extends Binder {
@@ -45,7 +49,6 @@ public class ExternalServerService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         Notification notification = createNotification("Service Running");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Changed from CONNECTED_DEVICE to DATA_SYNC to match Manifest and avoid hardware permission requirement
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
         } else {
             startForeground(NOTIFICATION_ID, notification);
@@ -56,11 +59,14 @@ public class ExternalServerService extends Service {
     public void connect(String ip, int remotePort, int localPort) {
         if (clientHandle != 0) return;
 
+        addLog("[INFO] Attempting connection to " + ip + ":" + remotePort);
         clientHandle = NativeInterface.clientCreate(ip, remotePort, localPort, 500);
         if (clientHandle != 0) {
             NativeInterface.clientStart(clientHandle);
             isRunning = true;
             startStatusPolling();
+        } else {
+            addLog("[ERROR] Failed to create native client handle");
         }
     }
 
@@ -70,6 +76,7 @@ public class ExternalServerService extends Service {
             NativeInterface.clientStop(clientHandle);
             NativeInterface.clientDestroy(clientHandle);
             clientHandle = 0;
+            addLog("[INFO] Native client stopped and destroyed");
         }
         if (statusListener != null) {
             statusListener.onConnectionStateChanged(false);
@@ -78,6 +85,17 @@ public class ExternalServerService extends Service {
 
     public void setStatusListener(StatusListener listener) {
         this.statusListener = listener;
+    }
+
+    public List<String> getSystemLogs() {
+        return new ArrayList<>(systemLogs);
+    }
+
+    public void addLog(String log) {
+        systemLogs.add(log);
+        if (statusListener != null) {
+            statusListener.onLogReceived(log);
+        }
     }
 
     private void startStatusPolling() {

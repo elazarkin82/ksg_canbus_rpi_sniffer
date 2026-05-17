@@ -12,13 +12,12 @@ import android.view.ViewGroup;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
-import elazarkin.ksg.external.service.R;
-import elazarkin.ksg.external.service.databinding.FragmentConnectionBinding;
+import elazarkin.ksg.external.service.databinding.FragmentSystemLogsBinding;
 import elazarkin.ksg.external.service.service.ExternalServerService;
 
-public class ConnectionFragment extends Fragment implements ExternalServerService.StatusListener {
+public class SystemLogsFragment extends Fragment implements ExternalServerService.StatusListener {
 
-    private FragmentConnectionBinding binding;
+    private FragmentSystemLogsBinding binding;
     private ExternalServerService serverService;
     private boolean isBound = false;
 
@@ -27,9 +26,15 @@ public class ConnectionFragment extends Fragment implements ExternalServerServic
         public void onServiceConnected(ComponentName name, IBinder service) {
             ExternalServerService.LocalBinder binder = (ExternalServerService.LocalBinder) service;
             serverService = binder.getService();
-            serverService.setStatusListener(ConnectionFragment.this);
+            serverService.setStatusListener(SystemLogsFragment.this);
             isBound = true;
-            updateUiState();
+            
+            // Populate existing logs
+            StringBuilder sb = new StringBuilder();
+            for (String log : serverService.getSystemLogs()) {
+                sb.append(log).append("\n");
+            }
+            binding.logConsole.setText(sb.toString());
         }
 
         @Override
@@ -41,68 +46,38 @@ public class ConnectionFragment extends Fragment implements ExternalServerServic
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        binding = FragmentConnectionBinding.inflate(inflater, container, false);
+        binding = FragmentSystemLogsBinding.inflate(inflater, container, false);
         return binding.getRoot();
     }
 
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-
-        binding.btnConnect.setOnClickListener(v -> {
-            if (isBound && serverService != null) {
-                if (binding.btnConnect.getText().toString().equalsIgnoreCase("Connect")) {
-                    String ip = binding.editIp.getText().toString();
-                    int remotePort = Integer.parseInt(binding.editRemotePort.getText().toString());
-                    int localPort = Integer.parseInt(binding.editLocalPort.getText().toString());
-                    
-                    serverService.connect(ip, remotePort, localPort);
-                    binding.btnConnect.setText("Disconnect");
-                } else {
-                    serverService.disconnect();
-                    binding.btnConnect.setText("Connect");
-                    binding.rpiStatusText.setText("Disconnected");
-                }
-            }
-        });
-
-        // Start and bind to the service
+        
         Intent intent = new Intent(getContext(), ExternalServerService.class);
-        requireContext().startService(intent);
         requireContext().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
-    }
-
-    private void updateUiState() {
-        // Sync UI if service is already running/connected
     }
 
     @Override
     public void onStatusUpdate(String status) {
-        if (getActivity() != null) {
-            getActivity().runOnUiThread(() -> {
-                if (binding != null) {
-                    binding.rpiStatusText.setText(status);
-                }
-            });
-        }
+        // Status updates are handled in ConnectionFragment
     }
 
     @Override
     public void onConnectionStateChanged(boolean connected) {
-        if (getActivity() != null) {
-            getActivity().runOnUiThread(() -> {
-                if (binding != null) {
-                    if (!connected) {
-                        binding.rpiStatusText.setText("Disconnected / Timeout");
-                    }
-                }
-            });
-        }
+        // Connection state handled elsewhere
     }
 
     @Override
     public void onLogReceived(String log) {
-        // Ignored in this fragment as per request
+        if (getActivity() != null) {
+            getActivity().runOnUiThread(() -> {
+                if (binding != null) {
+                    String currentText = binding.logConsole.getText().toString();
+                    binding.logConsole.setText(currentText + log + "\n");
+                }
+            });
+        }
     }
 
     @Override
