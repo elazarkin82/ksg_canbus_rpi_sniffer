@@ -97,6 +97,10 @@ This file defines the working rules for any agent contributing to this project. 
    if (isReady) { start(); }
    ```
 
+4. **No Native-to-Java calls**
+
+   It is strictly forbidden to call Java methods or access Java fields from C/C++ code. JNI usage must be strictly unidirectional: Java calls Native. Native code must never call back into Java.
+
 ## Project Paths
 
 *Note: All paths below are relative to the Android project root (`external_server/android`).*
