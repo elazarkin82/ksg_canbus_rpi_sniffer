@@ -30,10 +30,10 @@
 
                 <View
                     android:id="@+id/status_led"
-                    android:layout_width="12dp"
-                    android:layout_height="12dp"
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
                     android:layout_marginEnd="8dp"
-                    android:background="@android:color/holo_red_dark" />
+                    android:background="@drawable/led_circle" />
 
                 <TextView
                     android:id="@+id/toolbar_title"
@@ -47,12 +47,14 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btn_panic"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="PANIC"
-                    android:textColor="@android:color/holo_red_light"
-                    app:rippleColor="@android:color/holo_red_dark" />
+                    android:textColor="@android:color/white"
+                    android:textStyle="bold"
+                    app:backgroundTint="@android:color/holo_red_dark"
+                    app:cornerRadius="4dp"
+                    app:rippleColor="@android:color/white" />
             </LinearLayout>
 
         </com.google.android.material.appbar.MaterialToolbar>

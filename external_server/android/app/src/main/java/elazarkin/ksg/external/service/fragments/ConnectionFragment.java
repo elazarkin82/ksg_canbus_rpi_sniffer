@@ -33,7 +33,7 @@ public class ConnectionFragment extends Fragment
             serverService = binder.getService();
             isBound = true;
 
-            serverService.setConnectionStatusListener(statusListener);
+            serverService.addConnectionStatusListener(statusListener);
         }
 
         @Override
@@ -162,7 +162,7 @@ public class ConnectionFragment extends Fragment
         {
             if (serverService != null)
             {
-                serverService.setConnectionStatusListener(null);
+                serverService.removeConnectionStatusListener(statusListener);
             }
             requireContext().unbindService(serviceConnection);
             isBound = false;
