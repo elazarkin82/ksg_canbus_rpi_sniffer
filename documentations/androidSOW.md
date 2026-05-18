@@ -20,14 +20,14 @@ The Android External Server is a professional-grade mobile station designed to i
     *   **RX Thread:** High-speed listener for incoming CAN frames.
     *   **Command Thread:** Serialization of outgoing control commands and filter rules.
     *   **Logging Thread:** Synchronous file I/O for CSV recording to prevent main-thread jank.
-*   **JNI Interface:** Optimized data marshaling using direct byte buffers or primitive arrays to minimize garbage collection overhead.
+*   **JNI Interface:** Unidirectional data flow (Java to Native). Performance-critical data marshaling uses pre-allocated primitive arrays provided by Java to the Native layer, minimizing garbage collection and memory allocation overhead during high-speed message processing.
 
 ### 2.2 Application Framework (Android / Java)
 *   **Lifecycle Management:** A `Foreground Service` maintains the network heartbeat even when the screen is off or the user switches apps.
 *   **Notification Integration:** Sticky notification showing real-time status (Connected/Recording) and a "Stop" action button.
 *   **Threading Model:**
     *   **UI Thread:** Strictly for rendering and user interaction.
-    *   **Service Thread:** Handles the JNI bridge and logic coordination.
+    *   **Service Thread (RX):** A dedicated high-priority thread that pre-allocates message buffers (64KB) and arrays for metadata, calling the JNI layer in a loop to fetch incoming CAN traffic with minimal latency.
     *   **Worker Threads:** Used for JSON profile parsing and local storage operations.
 
 ---

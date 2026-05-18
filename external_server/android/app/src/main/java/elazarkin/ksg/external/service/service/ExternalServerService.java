@@ -302,11 +302,21 @@ public class ExternalServerService extends Service
             @Override
             public void run()
             {
+                byte[] rxBuffer = new byte[65536];
+                int[] cmdOut = new int[1];
+                double[] timeOut = new double[1];
+                int[] lenOut = new int[1];
+
                 while (isRunning && clientHandle != 0)
                 {
-                    NativeInterface.Message msg = NativeInterface.clientReadMessage(clientHandle, 100);
-                    if (msg != null)
+                    int res = NativeInterface.clientReadMessage(clientHandle, cmdOut, timeOut, rxBuffer, lenOut, 100);
+                    if (res > 0)
                     {
+                        int length = lenOut[0];
+                        byte[] messageData = new byte[length];
+                        System.arraycopy(rxBuffer, 0, messageData, 0, length);
+                        
+                        NativeInterface.Message msg = new NativeInterface.Message(cmdOut[0], timeOut[0], messageData);
                         notifyMessageReceived(msg);
                     }
                 }

@@ -53,29 +53,36 @@ Java_elazarkin_ksg_external_service_jni_NativeInterface_clientGetSnifferStatus(
     return nullptr;
 }
 
-extern "C" JNIEXPORT jobject JNICALL
+extern "C" JNIEXPORT jint JNICALL
 Java_elazarkin_ksg_external_service_jni_NativeInterface_clientReadMessage(
-        JNIEnv* env, jclass clazz, jlong handle, jint timeoutMs)
+        JNIEnv* env, jclass clazz, jlong handle, jintArray cmd, jdoubleArray timeMs, jbyteArray data, jintArray dataLen, jint timeoutMs)
 {
-    uint32_t command;
-    double time_ms;
-    uint8_t data[2048];
-    uint32_t len;
+    uint32_t nativeCommand;
+    double nativeTimeMs;
+    uint32_t nativeLen;
     
-    int res = client_read_message(reinterpret_cast<void*>(handle), &command, &time_ms, data, &len, timeoutMs);
+    // Get pointers to Java arrays
+    jint* pCmd = env->GetIntArrayElements(cmd, nullptr);
+    jdouble* pTime = env->GetDoubleArrayElements(timeMs, nullptr);
+    jint* pLen = env->GetIntArrayElements(dataLen, nullptr);
+    jbyte* pData = env->GetByteArrayElements(data, nullptr);
+    
+    int res = client_read_message(reinterpret_cast<void*>(handle), &nativeCommand, &nativeTimeMs, reinterpret_cast<uint8_t*>(pData), &nativeLen, timeoutMs);
     
     if (res > 0)
     {
-        jclass msgClass = env->FindClass("elazarkin/ksg/external/service/jni/NativeInterface$Message");
-        jmethodID constructor = env->GetMethodID(msgClass, "<init>", "(ID[B)V");
-        
-        jbyteArray jData = env->NewByteArray(len);
-        env->SetByteArrayRegion(jData, 0, len, reinterpret_cast<jbyte*>(data));
-        
-        jobject msgObj = env->NewObject(msgClass, constructor, (jint)command, (jdouble)time_ms, jData);
-        return msgObj;
+        pCmd[0] = (jint)nativeCommand;
+        pTime[0] = (jdouble)nativeTimeMs;
+        pLen[0] = (jint)nativeLen;
     }
-    return nullptr;
+    
+    // Release and commit changes back to Java
+    env->ReleaseIntArrayElements(cmd, pCmd, 0);
+    env->ReleaseDoubleArrayElements(timeMs, pTime, 0);
+    env->ReleaseIntArrayElements(dataLen, pLen, 0);
+    env->ReleaseByteArrayElements(data, pData, 0);
+    
+    return (jint)res;
 }
 
 extern "C" JNIEXPORT void JNICALL
