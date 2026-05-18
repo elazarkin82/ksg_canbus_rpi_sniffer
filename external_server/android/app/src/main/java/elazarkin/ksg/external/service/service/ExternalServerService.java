@@ -18,6 +18,14 @@ import java.util.List;
 
 public class ExternalServerService extends Service
 {
+    public enum ConnectionState
+    {
+        DISCONNECTED,
+        CONNECTING,
+        CONNECTED,
+        CONNECTION_LOST
+    }
+
     private static final String CHANNEL_ID = "ExternalServerChannel";
     private static final int NOTIFICATION_ID = 1;
 
@@ -25,18 +33,25 @@ public class ExternalServerService extends Service
     private long clientHandle = 0;
     private boolean isRunning = false;
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private StatusListener statusListener;
+    private IConnectionStatusListener connectionStatusListener;
+    private ISystemCallback systemCallback;
     private final List<String> systemLogs = new ArrayList<>();
-    private String lastStatus = "Disconnected";
-    private boolean isClientConnected = false;
+    
+    private ConnectionState connectionState = ConnectionState.DISCONNECTED;
+    private String mLastRpiStatus = "Disconnected";
 
-    public interface StatusListener
+    public interface IConnectionStatusListener
     {
-        void onStatusUpdate(String status);
+        void onConnection();
+        void onConnected();
+        void onConnectionLost();
+        void onDisconnected();
+        void onRpiStatusUpdate(String status);
+    }
 
-        void onConnectionStateChanged(boolean connected);
-
-        void onLogReceived(String log);
+    public interface ISystemCallback
+    {
+        void onSystemLogsUpdated(String log);
     }
 
     public class LocalBinder extends Binder
@@ -78,6 +93,13 @@ public class ExternalServerService extends Service
         }
 
         addLog("[INFO] Attempting connection to " + ip + ":" + remotePort);
+        
+        connectionState = ConnectionState.CONNECTING;
+        if (connectionStatusListener != null)
+        {
+            connectionStatusListener.onConnection();
+        }
+
         clientHandle = NativeInterface.clientCreate(ip, remotePort, localPort, 500);
         if (clientHandle != 0)
         {
@@ -88,6 +110,11 @@ public class ExternalServerService extends Service
         else
         {
             addLog("[ERROR] Failed to create native client handle");
+            connectionState = ConnectionState.DISCONNECTED;
+            if (connectionStatusListener != null)
+            {
+                connectionStatusListener.onDisconnected();
+            }
         }
     }
 
@@ -99,26 +126,59 @@ public class ExternalServerService extends Service
             NativeInterface.clientStop(clientHandle);
             NativeInterface.clientDestroy(clientHandle);
             clientHandle = 0;
-            isClientConnected = false;
-            lastStatus = "Disconnected";
             addLog("[INFO] Native client stopped and destroyed");
         }
-        if (statusListener != null)
+
+        connectionState = ConnectionState.DISCONNECTED;
+        mLastRpiStatus = "Disconnected";
+
+        if (connectionStatusListener != null)
         {
-            statusListener.onConnectionStateChanged(false);
-            statusListener.onStatusUpdate(lastStatus);
+            connectionStatusListener.onDisconnected();
+            connectionStatusListener.onRpiStatusUpdate(mLastRpiStatus);
         }
     }
 
-    public void setStatusListener(StatusListener listener)
+    public void setConnectionStatusListener(IConnectionStatusListener listener)
     {
-        this.statusListener = listener;
+        this.connectionStatusListener = listener;
         if (listener != null)
         {
-            // Immediate sync when listener attaches
-            listener.onConnectionStateChanged(isClientConnected);
-            listener.onStatusUpdate(lastStatus);
+            switch (connectionState)
+            {
+                case CONNECTED:
+                    listener.onConnected();
+                    break;
+                case CONNECTING:
+                    listener.onConnection();
+                    break;
+                case CONNECTION_LOST:
+                    listener.onConnectionLost();
+                    break;
+                case DISCONNECTED:
+                default:
+                    listener.onDisconnected();
+                    break;
+            }
+            listener.onRpiStatusUpdate(mLastRpiStatus);
         }
+    }
+
+    public void setSystemCallback(ISystemCallback callback)
+    {
+        this.systemCallback = callback;
+    }
+
+    public String getSystemLogs(int max_len)
+    {
+        StringBuilder sb = new StringBuilder();
+        int size = systemLogs.size();
+        int start = Math.max(0, size - max_len);
+        for (int i = start; i < size; i++)
+        {
+            sb.append(systemLogs.get(i)).append("\n");
+        }
+        return sb.toString();
     }
 
     public List<String> getSystemLogs()
@@ -129,25 +189,30 @@ public class ExternalServerService extends Service
     public void addLog(String log)
     {
         systemLogs.add(log);
-        if (statusListener != null)
+        if (systemCallback != null)
         {
-            statusListener.onLogReceived(log);
+            systemCallback.onSystemLogsUpdated(log);
         }
     }
 
     public boolean isClientActive()
     {
-        return clientHandle != 0;
+        return connectionState != ConnectionState.DISCONNECTED;
     }
 
     public boolean isClientConnected()
     {
-        return isClientConnected;
+        return connectionState == ConnectionState.CONNECTED;
     }
 
-    public String getLastStatus()
+    public String getLastRpiStatus()
     {
-        return lastStatus;
+        return mLastRpiStatus;
+    }
+
+    public ConnectionState getConnectionState()
+    {
+        return connectionState;
     }
 
     private void startStatusPolling()
@@ -162,8 +227,8 @@ public class ExternalServerService extends Service
             @Override
             public void run()
             {
-                String status;
                 boolean connected;
+                String status;
 
                 if (!isRunning || clientHandle == 0)
                 {
@@ -173,21 +238,64 @@ public class ExternalServerService extends Service
                 connected = NativeInterface.clientIsConnected(clientHandle);
                 status = NativeInterface.clientGetSnifferStatus(clientHandle);
 
-                isClientConnected = connected;
-                if (status != null)
-                {
-                    lastStatus = status;
-                }
+                updateConnectionState(connected);
 
-                if (statusListener != null)
+                if (status != null && !status.equals(mLastRpiStatus))
                 {
-                    statusListener.onConnectionStateChanged(isClientConnected);
-                    statusListener.onStatusUpdate(lastStatus);
+                    mLastRpiStatus = status;
+                    if (connectionStatusListener != null)
+                    {
+                        connectionStatusListener.onRpiStatusUpdate(mLastRpiStatus);
+                    }
                 }
 
                 handler.postDelayed(this, 500);
             }
         }, 500);
+    }
+
+    private void updateConnectionState(boolean isCurrentlyConnected)
+    {
+        ConnectionState newState = connectionState;
+
+        if (isCurrentlyConnected)
+        {
+            newState = ConnectionState.CONNECTED;
+        }
+        else
+        {
+            if (connectionState == ConnectionState.CONNECTED || connectionState == ConnectionState.CONNECTION_LOST)
+            {
+                newState = ConnectionState.CONNECTION_LOST;
+            }
+            else
+            {
+                newState = ConnectionState.CONNECTING;
+            }
+        }
+
+        if (newState != connectionState)
+        {
+            connectionState = newState;
+            if (connectionStatusListener != null)
+            {
+                switch (connectionState)
+                {
+                    case CONNECTED:
+                        connectionStatusListener.onConnected();
+                        break;
+                    case CONNECTION_LOST:
+                        connectionStatusListener.onConnectionLost();
+                        break;
+                    case CONNECTING:
+                        connectionStatusListener.onConnection();
+                        break;
+                    case DISCONNECTED:
+                        connectionStatusListener.onDisconnected();
+                        break;
+                }
+            }
+        }
     }
 
     private void createNotificationChannel()

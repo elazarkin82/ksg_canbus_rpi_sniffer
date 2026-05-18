@@ -16,11 +16,12 @@ import elazarkin.ksg.external.service.R;
 import elazarkin.ksg.external.service.databinding.FragmentConnectionBinding;
 import elazarkin.ksg.external.service.service.ExternalServerService;
 
-public class ConnectionFragment extends Fragment implements ExternalServerService.StatusListener
+public class ConnectionFragment extends Fragment
 {
     private FragmentConnectionBinding binding;
     private ExternalServerService serverService;
     private boolean isBound = false;
+    private final ConnectionStatusListenerImpl statusListener = new ConnectionStatusListenerImpl();
 
     private final ServiceConnection serviceConnection = new ServiceConnection()
     {
@@ -32,11 +33,7 @@ public class ConnectionFragment extends Fragment implements ExternalServerServic
             serverService = binder.getService();
             isBound = true;
 
-            // Set listener and get immediate sync
-            serverService.setStatusListener(ConnectionFragment.this);
-            
-            // Explicitly sync UI based on current service state
-            updateUiFromService();
+            serverService.setConnectionStatusListener(statusListener);
         }
 
         @Override
@@ -46,6 +43,68 @@ public class ConnectionFragment extends Fragment implements ExternalServerServic
             serverService = null;
         }
     };
+
+    private class ConnectionStatusListenerImpl implements ExternalServerService.IConnectionStatusListener
+    {
+        @Override
+        public void onConnection()
+        {
+            updateUi(() ->
+            {
+                binding.btnConnect.setText("Connecting...");
+            });
+        }
+
+        @Override
+        public void onConnected()
+        {
+            updateUi(() ->
+            {
+                binding.btnConnect.setText("Disconnect");
+            });
+        }
+
+        @Override
+        public void onConnectionLost()
+        {
+            updateUi(() ->
+            {
+                binding.btnConnect.setText("Connecting...");
+            });
+        }
+
+        @Override
+        public void onDisconnected()
+        {
+            updateUi(() ->
+            {
+                binding.btnConnect.setText("Connect");
+            });
+        }
+
+        @Override
+        public void onRpiStatusUpdate(String status)
+        {
+            updateUi(() ->
+            {
+                binding.rpiStatusText.setText(status);
+            });
+        }
+
+        private void updateUi(Runnable runnable)
+        {
+            if (getActivity() != null)
+            {
+                getActivity().runOnUiThread(() ->
+                {
+                    if (binding != null)
+                    {
+                        runnable.run();
+                    }
+                });
+            }
+        }
+    }
 
     @Nullable
     @Override
@@ -64,103 +123,36 @@ public class ConnectionFragment extends Fragment implements ExternalServerServic
         {
             if (isBound && serverService != null)
             {
-                // Rely on Service state instead of button text
                 if (!serverService.isClientActive())
                 {
                     String ip;
                     int remotePort;
                     int localPort;
 
-                    ip = binding.editIp.getText().toString();
-                    remotePort = Integer.parseInt(binding.editRemotePort.getText().toString());
-                    localPort = Integer.parseInt(binding.editLocalPort.getText().toString());
+                    try
+                    {
+                        ip = binding.editIp.getText().toString();
+                        remotePort = Integer.parseInt(binding.editRemotePort.getText().toString());
+                        localPort = Integer.parseInt(binding.editLocalPort.getText().toString());
 
-                    serverService.connect(ip, remotePort, localPort);
-                    binding.btnConnect.setText("Disconnect");
+                        serverService.connect(ip, remotePort, localPort);
+                    }
+                    catch (NumberFormatException e)
+                    {
+                        // Handle invalid port input
+                    }
                 }
                 else
                 {
                     serverService.disconnect();
-                    binding.btnConnect.setText("Connect");
-                    binding.rpiStatusText.setText("Disconnected");
                 }
             }
         });
 
-        // Start and bind to the service to ensure it survives fragment replacement
         Intent intent;
         intent = new Intent(getContext(), ExternalServerService.class);
         requireContext().startService(intent);
         requireContext().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
-    }
-
-    private void updateUiFromService()
-    {
-        if (binding == null || serverService == null)
-        {
-            return;
-        }
-
-        if (serverService.isClientActive())
-        {
-            binding.btnConnect.setText("Disconnect");
-            binding.rpiStatusText.setText(serverService.getLastStatus());
-        }
-        else
-        {
-            binding.btnConnect.setText("Connect");
-            binding.rpiStatusText.setText("Disconnected");
-        }
-    }
-
-    @Override
-    public void onStatusUpdate(String status)
-    {
-        if (getActivity() != null)
-        {
-            getActivity().runOnUiThread(() ->
-            {
-                if (binding != null)
-                {
-                    binding.rpiStatusText.setText(status);
-                }
-            });
-        }
-    }
-
-    @Override
-    public void onConnectionStateChanged(boolean connected)
-    {
-        if (getActivity() != null)
-        {
-            getActivity().runOnUiThread(() ->
-            {
-                if (binding != null)
-                {
-                    if (connected)
-                    {
-                        // Text update handled by onStatusUpdate, but we can set specific color/state here
-                    }
-                    else
-                    {
-                        if (serverService != null && serverService.isClientActive())
-                        {
-                            binding.rpiStatusText.setText("Disconnected / Timeout");
-                        }
-                        else
-                        {
-                            binding.rpiStatusText.setText("Disconnected");
-                        }
-                    }
-                }
-            });
-        }
-    }
-
-    @Override
-    public void onLogReceived(String log)
-    {
-        // System logs are handled in SystemLogsFragment
     }
 
     @Override
@@ -170,7 +162,7 @@ public class ConnectionFragment extends Fragment implements ExternalServerServic
         {
             if (serverService != null)
             {
-                serverService.setStatusListener(null);
+                serverService.setConnectionStatusListener(null);
             }
             requireContext().unbindService(serviceConnection);
             isBound = false;
