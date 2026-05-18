@@ -64,25 +64,37 @@ public class MainActivity extends AppCompatActivity
         @Override
         public void onConnection()
         {
-            runOnUiThread(() -> setLedState(ExternalServerService.ConnectionState.CONNECTING));
+            runOnUiThread(() ->
+            {
+                setLedState(ExternalServerService.ConnectionState.CONNECTING);
+            });
         }
 
         @Override
         public void onConnected()
         {
-            runOnUiThread(() -> setLedState(ExternalServerService.ConnectionState.CONNECTED));
+            runOnUiThread(() ->
+            {
+                setLedState(ExternalServerService.ConnectionState.CONNECTED);
+            });
         }
 
         @Override
         public void onConnectionLost()
         {
-            runOnUiThread(() -> setLedState(ExternalServerService.ConnectionState.CONNECTION_LOST));
+            runOnUiThread(() ->
+            {
+                setLedState(ExternalServerService.ConnectionState.CONNECTION_LOST);
+            });
         }
 
         @Override
         public void onDisconnected()
         {
-            runOnUiThread(() -> setLedState(ExternalServerService.ConnectionState.DISCONNECTED));
+            runOnUiThread(() ->
+            {
+                setLedState(ExternalServerService.ConnectionState.DISCONNECTED);
+            });
         }
 
         @Override
@@ -101,6 +113,10 @@ public class MainActivity extends AppCompatActivity
         setContentView(binding.getRoot());
 
         setSupportActionBar(binding.toolbar);
+        if (getSupportActionBar() != null)
+        {
+            getSupportActionBar().setDisplayShowTitleEnabled(false);
+        }
 
         checkAndRequestPermissions();
 
