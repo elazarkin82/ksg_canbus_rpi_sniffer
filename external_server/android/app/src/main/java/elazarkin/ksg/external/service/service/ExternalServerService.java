@@ -33,12 +33,14 @@ public class ExternalServerService extends Service
     private long clientHandle = 0;
     private boolean isRunning = false;
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private final List<IConnectionStatusListener> listeners = new ArrayList<>();
+    private final List<IConnectionStatusListener> statusListeners = new ArrayList<>();
+    private final List<IMessageListener> messageListeners = new ArrayList<>();
     private ISystemCallback systemCallback;
     private final List<String> systemLogs = new ArrayList<>();
     
     private ConnectionState connectionState = ConnectionState.DISCONNECTED;
     private String mLastRpiStatus = "Disconnected";
+    private Thread rxThread;
 
     public interface IConnectionStatusListener
     {
@@ -47,6 +49,11 @@ public class ExternalServerService extends Service
         void onConnectionLost();
         void onDisconnected();
         void onRpiStatusUpdate(String status);
+    }
+
+    public interface IMessageListener
+    {
+        void onMessageReceived(NativeInterface.Message msg);
     }
 
     public interface ISystemCallback
@@ -103,6 +110,7 @@ public class ExternalServerService extends Service
             NativeInterface.clientStart(clientHandle);
             isRunning = true;
             startStatusPolling();
+            startRxThread();
         }
         else
         {
@@ -123,6 +131,12 @@ public class ExternalServerService extends Service
             addLog("[INFO] Native client stopped and destroyed");
         }
 
+        if (rxThread != null)
+        {
+            try { rxThread.join(500); } catch (InterruptedException e) { }
+            rxThread = null;
+        }
+
         connectionState = ConnectionState.DISCONNECTED;
         mLastRpiStatus = "Disconnected";
 
@@ -130,18 +144,39 @@ public class ExternalServerService extends Service
         notifyRpiStatusUpdate(mLastRpiStatus);
     }
 
+    public void sendRawCommand(int commandId, byte[] payload)
+    {
+        if (clientHandle != 0)
+        {
+            NativeInterface.clientSendRawCommand(clientHandle, commandId, payload);
+        }
+    }
+
     public void addConnectionStatusListener(IConnectionStatusListener listener)
     {
-        if (!listeners.contains(listener))
+        if (!statusListeners.contains(listener))
         {
-            listeners.add(listener);
+            statusListeners.add(listener);
             syncListenerState(listener);
         }
     }
 
     public void removeConnectionStatusListener(IConnectionStatusListener listener)
     {
-        listeners.remove(listener);
+        statusListeners.remove(listener);
+    }
+
+    public void addMessageListener(IMessageListener listener)
+    {
+        if (!messageListeners.contains(listener))
+        {
+            messageListeners.add(listener);
+        }
+    }
+
+    public void removeMessageListener(IMessageListener listener)
+    {
+        messageListeners.remove(listener);
     }
 
     private void syncListenerState(IConnectionStatusListener listener)
@@ -260,6 +295,27 @@ public class ExternalServerService extends Service
         }, 500);
     }
 
+    private void startRxThread()
+    {
+        rxThread = new Thread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                while (isRunning && clientHandle != 0)
+                {
+                    NativeInterface.Message msg = NativeInterface.clientReadMessage(clientHandle, 100);
+                    if (msg != null)
+                    {
+                        notifyMessageReceived(msg);
+                    }
+                }
+            }
+        });
+        rxThread.setName("ServiceRxThread");
+        rxThread.start();
+    }
+
     private void updateConnectionState(boolean isCurrentlyConnected)
     {
         ConnectionState newState = connectionState;
@@ -316,7 +372,7 @@ public class ExternalServerService extends Service
 
     private void notifyConnection()
     {
-        for (IConnectionStatusListener l : listeners)
+        for (IConnectionStatusListener l : statusListeners)
         {
             l.onConnection();
         }
@@ -324,7 +380,7 @@ public class ExternalServerService extends Service
 
     private void notifyConnected()
     {
-        for (IConnectionStatusListener l : listeners)
+        for (IConnectionStatusListener l : statusListeners)
         {
             l.onConnected();
         }
@@ -332,7 +388,7 @@ public class ExternalServerService extends Service
 
     private void notifyConnectionLost()
     {
-        for (IConnectionStatusListener l : listeners)
+        for (IConnectionStatusListener l : statusListeners)
         {
             l.onConnectionLost();
         }
@@ -340,7 +396,7 @@ public class ExternalServerService extends Service
 
     private void notifyDisconnected()
     {
-        for (IConnectionStatusListener l : listeners)
+        for (IConnectionStatusListener l : statusListeners)
         {
             l.onDisconnected();
         }
@@ -348,10 +404,25 @@ public class ExternalServerService extends Service
 
     private void notifyRpiStatusUpdate(String status)
     {
-        for (IConnectionStatusListener l : listeners)
+        for (IConnectionStatusListener l : statusListeners)
         {
             l.onRpiStatusUpdate(status);
         }
+    }
+
+    private void notifyMessageReceived(final NativeInterface.Message msg)
+    {
+        handler.post(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                for (IMessageListener l : messageListeners)
+                {
+                    l.onMessageReceived(msg);
+                }
+            }
+        });
     }
 
     private void createNotificationChannel()

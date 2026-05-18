@@ -12,7 +12,6 @@
         android:textSize="20sp"
         android:textStyle="bold" />
 
-    <!-- TODO delete this gui example -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btn_get_params"
         android:layout_width="match_parent"
@@ -20,22 +19,25 @@
         android:layout_marginTop="16dp"
         android:text="GET CURRENT PARAMS" />
 
-    <com.google.android.material.textfield.TextInputLayout
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:hint="CAN Interface (e.g. can0)">
-        <com.google.android.material.textfield.TextInputEditText
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="8dp">
+
+        <LinearLayout
+            android:id="@+id/params_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="can0" />
-    </com.google.android.material.textfield.TextInputLayout>
+            android:orientation="vertical" />
+    </ScrollView>
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btn_set_params"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
-        android:text="SET &amp; SAVE PARAMS" />
+        android:enabled="false"
+        android:text="APPLY &amp; RESTART SNIFFER" />
 
 </LinearLayout>

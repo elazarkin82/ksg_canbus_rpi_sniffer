@@ -53,7 +53,7 @@ Java_elazarkin_ksg_external_service_jni_NativeInterface_clientGetSnifferStatus(
     return nullptr;
 }
 
-extern "C" JNIEXPORT jbyteArray JNICALL
+extern "C" JNIEXPORT jobject JNICALL
 Java_elazarkin_ksg_external_service_jni_NativeInterface_clientReadMessage(
         JNIEnv* env, jclass clazz, jlong handle, jint timeoutMs)
 {
@@ -66,11 +66,33 @@ Java_elazarkin_ksg_external_service_jni_NativeInterface_clientReadMessage(
     
     if (res > 0)
     {
-        jbyteArray result = env->NewByteArray(len);
-        env->SetByteArrayRegion(result, 0, len, reinterpret_cast<jbyte*>(data));
-        return result;
+        jclass msgClass = env->FindClass("elazarkin/ksg/external/service/jni/NativeInterface$Message");
+        jmethodID constructor = env->GetMethodID(msgClass, "<init>", "(ID[B)V");
+        
+        jbyteArray jData = env->NewByteArray(len);
+        env->SetByteArrayRegion(jData, 0, len, reinterpret_cast<jbyte*>(data));
+        
+        jobject msgObj = env->NewObject(msgClass, constructor, (jint)command, (jdouble)time_ms, jData);
+        return msgObj;
     }
     return nullptr;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_elazarkin_ksg_external_service_jni_NativeInterface_clientSendRawCommand(
+        JNIEnv* env, jclass clazz, jlong handle, jint commandId, jbyteArray payload)
+{
+    if (payload == nullptr)
+    {
+        client_send_raw_command(reinterpret_cast<void*>(handle), (uint32_t)commandId, nullptr, 0);
+    }
+    else
+    {
+        jsize len = env->GetArrayLength(payload);
+        jbyte* body = env->GetByteArrayElements(payload, nullptr);
+        client_send_raw_command(reinterpret_cast<void*>(handle), (uint32_t)commandId, reinterpret_cast<const uint8_t*>(body), (size_t)len);
+        env->ReleaseByteArrayElements(payload, body, JNI_ABORT);
+    }
 }
 
 extern "C" JNIEXPORT jstring JNICALL

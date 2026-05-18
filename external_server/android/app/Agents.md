@@ -28,9 +28,9 @@ This file defines the working rules for any agent contributing to this project. 
 
 ## Android Development Rules
 
-1. **Java only**
+1. **Java and C/C++ only**
 
-   Android development in this project must be done in **Java**, not Kotlin.
+   Android framework development (Activities, Fragments, Services, etc.) must be done in **Java**, not Kotlin. Native logic and performance-critical components must be implemented in **C/C++** via JNI.
 
 2. **Brace style**
 
@@ -99,25 +99,21 @@ This file defines the working rules for any agent contributing to this project. 
 
 ## Project Paths
 
-This project is part of a larger project whose root is located at:
+*Note: All paths below are relative to the Android project root (`external_server/android`).*
 
-`/home/ploni/some_project/`
+The Git repository root is located at:
 
-The Android project handled by this agent is located at:
-
-`/home/ploni/some_project/some_service/android`
+`../../`
 
 The corresponding Python version that the Android application should align with is located at:
 
-`/home/ploni/some_project/some_service/python`
+`../python`
 
 ## Android SOW Documentation
 
 The Android SOW document is located at:
 
-```text
-/home/elazarkin/work/deeplearning/home/work/projects/ksg/ksg_canbus_rpi_sniffer/documentations/androidSOW.md
-```
+`../../documentations/androidSOW.md`
 
 The agent must review this file before making meaningful Android-related changes.
 
